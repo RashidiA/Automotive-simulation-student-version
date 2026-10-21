@@ -1,0 +1,946 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Adaptive Spot Welding Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout concept: instrument-panel lecture page. Playback and disturbance controls on top, two matched weld rigs (OFF | ON) side by side, a results strip, then the live control-loop diagram. Copper accent from the electrodes, cool steel neutrals. */
+:root {
+  --bg: #e9edf2;
+  --panel: #f7f9fb;
+  --panel2: #e2e8ef;
+  --ink: #0e2238;
+  --ink2: #435569;
+  --line: #c3ccd7;
+  --grid: #dbe1e8;
+  --plot: #fbfcfd;
+  --cellbg: #f2f5f8;
+  --accent: #b0500f;
+  --accent-ink: #ffffff;
+  --sig-i: #c62d2d;
+  --sig-u: #2457c5;
+  --sig-r: #1c8444;
+  --sig-ref: #0e2238;
+  --good: #1b6b3c;
+  --good-bg: #dcefe3;
+  --bad: #a8261d;
+  --bad-bg: #f6dedb;
+  --sheet: #a3b3c3;
+  --sheet-edge: #5a6f84;
+  --cu1: #eba56d;
+  --cu2: #c06a31;
+  --cu3: #7d3b14;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c131a;
+    --panel: #131c25;
+    --panel2: #1b2733;
+    --ink: #e6edf4;
+    --ink2: #9fb2c4;
+    --line: #2a3947;
+    --grid: #1f2c38;
+    --plot: #0f1820;
+    --cellbg: #0f1820;
+    --accent: #ee8d45;
+    --accent-ink: #1a0d03;
+    --sig-i: #ff6f61;
+    --sig-u: #74a4ff;
+    --sig-r: #4fd17f;
+    --sig-ref: #e6edf4;
+    --good: #7fdca2;
+    --good-bg: #17382a;
+    --bad: #ff9a90;
+    --bad-bg: #44201d;
+    --sheet: #4a5e72;
+    --sheet-edge: #8fa5ba;
+    --cu1: #e9a06a;
+    --cu2: #b8602b;
+    --cu3: #6b3010;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c131a;
+  --panel: #131c25;
+  --panel2: #1b2733;
+  --ink: #e6edf4;
+  --ink2: #9fb2c4;
+  --line: #2a3947;
+  --grid: #1f2c38;
+  --plot: #0f1820;
+  --cellbg: #0f1820;
+  --accent: #ee8d45;
+  --accent-ink: #1a0d03;
+  --sig-i: #ff6f61;
+  --sig-u: #74a4ff;
+  --sig-r: #4fd17f;
+  --sig-ref: #e6edf4;
+  --good: #7fdca2;
+  --good-bg: #17382a;
+  --bad: #ff9a90;
+  --bad-bg: #44201d;
+  --sheet: #4a5e72;
+  --sheet-edge: #8fa5ba;
+  --cu1: #e9a06a;
+  --cu2: #b8602b;
+  --cu3: #6b3010;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.top, .infobar, .stage, .side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.top { gap: 14px; }
+.infobar { gap: 10px; }
+.panel-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+h1, h2, h3, p { margin: 0; }
+
+/* header */
+.titleblk { display: flex; flex-direction: column; gap: 10px; padding-bottom: 4px; }
+.eyebrow {
+  align-self: flex-start;
+  background: var(--accent); color: var(--accent-ink);
+  font-weight: 600; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 4px 12px; border-radius: 999px;
+}
+h1 {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(36px, 7vw, 60px); line-height: 1; letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+.lede { color: var(--ink2); max-width: 64ch; font-size: 17px; }
+
+/* controls */
+.controls {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px; display: grid; gap: 16px 28px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+.grp { display: flex; flex-direction: column; gap: 8px; min-width: 0; border: 0; padding: 0; margin: 0; }
+.grp > .lab, legend.lab {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); padding: 0;
+}
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn {
+  font: 600 14px var(--font-body); color: var(--ink);
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 14px; min-height: 40px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn:hover { border-color: var(--ink2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 104px; justify-content: center; }
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.btn:focus-visible, .seg input:focus-visible + label, input[type=range]:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+.seg { position: relative; display: inline-flex; }
+.seg input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.seg label {
+  font: 500 14px var(--font-body); color: var(--ink);
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 12px; min-height: 40px; display: inline-flex; align-items: center; cursor: pointer;
+}
+.seg input:checked + label { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.scrub { display: flex; align-items: center; gap: 12px; }
+.scrub input[type=range] { flex: 1; min-width: 0; }
+input[type=range] { accent-color: var(--accent); height: 28px; }
+input[type=range]:disabled { opacity: 0.4; }
+.tval { font-family: var(--font-mono); font-size: 14px; font-variant-numeric: tabular-nums; min-width: 6.5ch; text-align: right; }
+.hint { font-size: 13px; color: var(--ink2); min-height: 2.6em; }
+
+.phase {
+  font-size: 16px; padding: 10px 14px; border-left: 4px solid var(--accent);
+  background: var(--panel); border-radius: 0 6px 6px 0; min-height: 3.4em; max-width: 100%;
+}
+
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--ink2); }
+.legend li { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { display: inline-block; width: 26px; height: 0; border-top: 3px solid currentColor; }
+.legend i.dash { border-top-style: dashed; }
+
+/* rigs */
+.duo { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); }
+.rig {
+  background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--ink2);
+  border-radius: 8px; padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+}
+.rig.on { border-top-color: var(--accent); }
+.rig-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.rig-h h2 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.05; letter-spacing: 0.01em; text-transform: uppercase; }
+.tag { font-family: var(--font-mono); font-size: 12px; color: var(--ink2); }
+canvas { display: block; width: 100%; height: auto; border-radius: 4px; }
+canvas.cell { aspect-ratio: 560 / 330; }
+canvas.chart { aspect-ratio: 560 / 300; border: 1px solid var(--line); }
+.readout { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.readout div { background: var(--panel2); border-radius: 4px; padding: 6px 8px; min-width: 0; }
+.readout dt { font-size: 12px; font-weight: 600; color: var(--ink2); }
+.readout dd { margin: 0; font-family: var(--font-mono); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.readout .ci { color: var(--sig-i); } .readout .cu { color: var(--sig-u); } .readout .cr { color: var(--sig-r); }
+.nug { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.nug .lbl { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); }
+.nug .big { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--ink2); }
+.nug .big b { font-size: 46px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.badge { font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px; }
+.badge.ok { background: var(--good-bg); color: var(--good); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.msg { font-size: 14px; color: var(--ink2); min-height: 3em; }
+
+/* results */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel h2 { font-family: var(--font-display); font-weight: 700; font-size: 26px; text-transform: uppercase; letter-spacing: 0.01em; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 520px; }
+th, td { padding: 10px 14px; text-align: center; border: 1px solid var(--line); }
+thead th { background: var(--panel2); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink2); }
+td.num { font-family: var(--font-display); font-weight: 700; font-size: 38px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+td.num.mark { color: var(--accent); }
+td.v { font-size: 13px; font-weight: 600; }
+td.v.ok { color: var(--good); } td.v.bad { color: var(--bad); } td.v.na { color: var(--ink2); font-weight: 400; }
+.note { font-size: 14px; color: var(--ink2); max-width: 90ch; }
+
+/* loop diagram */
+.scroll { overflow-x: auto; }
+.loop-svg { display: block; width: 100%; max-width: 520px; margin: 0 auto; height: auto; }
+.lp-box { fill: var(--panel2); stroke: var(--line); stroke-width: 1.5; }
+.lp-box.hot { stroke: var(--accent); stroke-width: 2.5; }
+.lp-t { font: 600 17px var(--font-body); fill: var(--ink); }
+.lp-s { font: 400 13.5px var(--font-body); fill: var(--ink2); }
+.lp-v { font: 500 16px var(--font-mono); fill: var(--ink); }
+.lp-big { font: 500 19px var(--font-mono); fill: var(--ink); }
+.lp-lab { font: 500 13.5px var(--font-body); fill: var(--ink2); }
+.lp-wire { fill: none; stroke: var(--ink2); stroke-width: 2; }
+.lp-head { fill: var(--ink2); }
+.flow { fill: none; stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 10; animation: dash 0.9s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -16; } }
+.is-paused .flow { animation-play-state: paused; }
+.lp-sum { fill: var(--panel2); stroke: var(--ink2); stroke-width: 2; }
+.lp-sheet { fill: var(--sheet); stroke: var(--sheet-edge); stroke-width: 1; }
+.lp-cu { fill: var(--cu2); stroke: var(--cu3); stroke-width: 1; }
+.lp-nug { fill: #ffb23d; stroke: #b3470b; stroke-width: 1; }
+
+details.notes { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+details.notes summary { cursor: pointer; font-weight: 600; }
+details.notes summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+details.notes ul { margin: 10px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; color: var(--ink2); }
+
+
+/* One-screen landscape mode: three columns (OFF | ON | loop diagram + results) that fill the window without scrolling */
+@media (min-width: 1100px) and (min-height: 760px) {
+  html, body { height: 100%; }
+  body { padding-block: 10px; }
+  .app { max-width: none; height: 100%; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; }
+  .top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  .titleblk { justify-content: center; gap: 6px; padding-right: 8px; }
+  h1 { font-size: 42px; }
+  .lede { display: none; }
+  .controls { padding: 8px 14px; gap: 6px 28px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; }
+  .grp { gap: 6px; }
+  .grp > .lab.pb { display: none; }
+  .btn, .seg label { min-height: 34px; padding: 5px 10px; font-size: 13px; }
+  .btn.primary { min-width: 96px; }
+  input[type=range] { height: 22px; }
+  .hint { min-height: 0; font-size: 12.5px; }
+  .infobar { flex-direction: row; align-items: center; justify-content: space-between; gap: 20px; }
+  .phase { flex: 1; min-height: 0; font-size: 15px; padding: 6px 12px; }
+  .legend { flex: none; justify-content: flex-end; }
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr); gap: 10px; min-height: 0; }
+  .duo { display: contents; }
+  .rig { min-height: 0; padding: 8px 10px 10px; gap: 6px; border-top-width: 3px; }
+  .rig-h h2 { font-size: 24px; }
+  canvas.cell { flex: 40 1 0%; min-height: 110px; aspect-ratio: auto; height: auto; }
+  canvas.chart { flex: 56 1 0%; min-height: 140px; aspect-ratio: auto; height: auto; }
+  .readout div { padding: 3px 7px; }
+  .readout dd { font-size: 15px; }
+  .nug .big b { font-size: 36px; }
+  .msg { font-size: 13px; min-height: 2.7em; }
+  .side { min-height: 0; overflow: auto; gap: 10px; }
+  .panel { padding: 8px 12px 10px; gap: 6px; }
+  .panel h2 { font-size: 22px; }
+  .loop { flex: 1 1 0; min-height: 280px; }
+  .loop .scroll { flex: 1; min-height: 0; overflow: hidden; }
+  .loop-svg { width: 100%; height: 100%; max-width: none; margin: 0; }
+  .loop-note { display: none; }
+  .tablewrap { overflow: visible; }
+  table { min-width: 0; }
+  th, td { padding: 5px 6px; }
+  thead th { font-size: 10.5px; letter-spacing: 0.04em; }
+  td.num { font-size: 30px; }
+  td.v { font-size: 12px; }
+  .note { font-size: 12.5px; }
+  details.notes { padding: 6px 12px; }
+}
+
+@media (max-width: 560px) {
+  .readout { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .readout dd { font-size: 15px; }
+  td.num { font-size: 30px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow { animation: none; }
+}
+</style>
+
+<main class="app" id="app">
+  <header class="top">
+    <div class="titleblk">
+      <p class="eyebrow">Stage 3 · Automation</p>
+      <h1>Adaptive Spot Welding</h1>
+      <p class="lede">The same weld run twice, once at constant current and once with the closed loop on. Add a disturbance and watch what happens to the nugget.</p>
+    </div>
+    <section class="controls" aria-label="Simulation controls">
+      <div class="grp">
+        <span class="lab pb">Playback</span>
+        <div class="row">
+          <button class="btn primary" id="play" type="button"></button>
+          <button class="btn" id="restart" type="button">Restart</button>
+          <span class="seg"><input type="radio" name="speed" id="sp4" value="4"><label for="sp4">Fast</label></span>
+          <span class="seg"><input type="radio" name="speed" id="sp10" value="10" checked><label for="sp10">Normal</label></span>
+          <span class="seg"><input type="radio" name="speed" id="sp20" value="20"><label for="sp20">Slow</label></span>
+        </div>
+        <div class="scrub">
+          <label for="scrub" class="lab">Weld time</label>
+          <input type="range" id="scrub" min="0" max="200" step="0.5" value="200">
+          <output class="tval" id="tlabel" for="scrub">200 ms</output>
+        </div>
+      </div>
+      <fieldset class="grp">
+        <legend class="lab">Disturbance</legend>
+        <div class="row">
+          <span class="seg"><input type="radio" name="scen" id="sc-none" value="none" checked><label for="sc-none">None (Test 1)</label></span>
+          <span class="seg"><input type="radio" name="scen" id="sc-shunt" value="shunt"><label for="sc-shunt">Nearby weld</label></span>
+          <span class="seg"><input type="radio" name="scen" id="sc-worn" value="worn"><label for="sc-worn">Worn tip</label></span>
+          <span class="seg"><input type="radio" name="scen" id="sc-coat" value="coat"><label for="sc-coat">Coated sheet</label></span>
+        </div>
+        <div class="scrub">
+          <label for="sev" class="lab">Severity</label>
+          <input type="range" id="sev" min="0" max="100" step="5" value="60" disabled>
+          <output class="tval" id="sevlabel" for="sev">0 %</output>
+        </div>
+        <p class="hint" id="scenInfo"></p>
+      </fieldset>
+    </section>
+  </header>
+
+  <div class="infobar">
+    <p class="phase" id="phase" aria-live="off"></p>
+    <ul class="legend" aria-label="Signal legend">
+      <li style="color:var(--sig-i)"><i></i>Current I</li>
+      <li style="color:var(--sig-u)"><i></i>Voltage U</li>
+      <li style="color:var(--sig-r)"><i></i>Resistance R</li>
+      <li style="color:var(--sig-ref)"><i class="dash"></i>Reference R</li>
+    </ul>
+  </div>
+
+  <div class="stage">
+    <section class="duo" id="duo"></section>
+
+    <aside class="side">
+      <section class="panel loop" aria-label="Control loop block diagram">
+        <div class="panel-h"><h2>Closed loop</h2><span class="tag">live values, Adaptive ON</span></div>
+        <p class="note loop-note">Orange dashes show signal flow while the weld plays. With Adaptive OFF the reference path is not used and the current regulator simply holds 9.2 kA.</p>
+        <div class="scroll" id="loopwrap">
+      <svg class="loop-svg" viewBox="0 0 540 620" role="img" aria-label="Block diagram: the reference curve and the measured resistance feed a summing junction, then the UI regulator, the current regulator and the weld process, with electrode voltage and current fed back.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="lp-head"/></marker>
+        </defs>
+
+        <g>
+          <path class="lp-wire" d="M300,78 V106" marker-end="url(#ah)"/>
+          <path class="lp-wire" d="M300,138 V172" marker-end="url(#ah)"/>
+          <path class="lp-wire" d="M300,252 V296" marker-end="url(#ah)"/>
+          <path class="lp-wire" d="M300,376 V418" marker-end="url(#ah)"/>
+          <path class="lp-wire" d="M180,520 H84 V372" marker-end="url(#ah)"/>
+          <path class="lp-wire" d="M84,290 V122 H284" marker-end="url(#ah)"/>
+          <path class="lp-wire" d="M420,500 H510 V336 H420" marker-end="url(#ah)"/>
+        </g>
+        <g>
+          <path class="flow" d="M300,78 V106"/>
+          <path class="flow" d="M300,138 V172"/>
+          <path class="flow" d="M300,252 V296"/>
+          <path class="flow" d="M300,376 V418"/>
+          <path class="flow" d="M180,520 H84 V372"/>
+          <path class="flow" d="M84,290 V122 H284"/>
+          <path class="flow" d="M420,500 H510 V336 H420"/>
+        </g>
+
+        <rect class="lp-box" x="180" y="6" width="240" height="72" rx="6"/>
+        <text class="lp-t" x="192" y="28">Reference curve</text>
+        <text class="lp-s" x="192" y="46">R_ref(t) from a good weld</text>
+        <text class="lp-v" x="192" y="68" id="ldRref">0 µΩ</text>
+
+        <circle class="lp-sum" cx="300" cy="122" r="16"/>
+        <path d="M289,111 L311,133 M311,111 L289,133" stroke="var(--ink2)" stroke-width="2" fill="none"/>
+        <text class="lp-lab" x="316" y="104">+</text>
+        <text class="lp-lab" x="268" y="116" text-anchor="end">−</text>
+        <text class="lp-lab" x="330" y="118">Error signal</text>
+        <text class="lp-v" x="330" y="136" id="ldE">0.0 %</text>
+
+        <rect class="lp-box hot" x="180" y="172" width="240" height="80" rx="6"/>
+        <text class="lp-t" x="192" y="196">UI regulator</text>
+        <text class="lp-s" x="192" y="214">resistance error → current</text>
+        <text class="lp-v" x="192" y="240" id="ldIcmd">0.0 kA</text>
+
+        <text class="lp-lab" x="312" y="268">Command current</text>
+        <text class="lp-lab" x="312" y="285">and time</text>
+
+        <rect class="lp-box" x="180" y="296" width="240" height="80" rx="6"/>
+        <text class="lp-t" x="192" y="320">Current regulator</text>
+        <text class="lp-s" x="192" y="338">holds the commanded kA</text>
+        <text class="lp-v" x="192" y="364" id="ldI">0.0 kA</text>
+
+        <text class="lp-lab" x="312" y="402">Weld current</text>
+
+        <rect class="lp-box" x="180" y="418" width="240" height="190" rx="6"/>
+        <text class="lp-t" x="300" y="442" text-anchor="middle">Weld process</text>
+        <path class="lp-cu" d="M280,510 L320,510 L332,482 L332,462 L268,462 L268,482 Z"/>
+        <path class="lp-cu" d="M280,528 L320,528 L332,556 L332,576 L268,576 L268,556 Z"/>
+        <rect class="lp-sheet" x="215" y="510" width="170" height="9"/>
+        <rect class="lp-sheet" x="215" y="519" width="170" height="9"/>
+        <ellipse class="lp-nug" id="ldNug" cx="300" cy="519" rx="1" ry="1"/>
+        <text class="lp-big" x="300" y="600" text-anchor="middle" id="ldD">Ø 0.0 mm</text>
+
+        <text class="lp-lab" x="504" y="436" text-anchor="end">Actual</text>
+        <text class="lp-lab" x="504" y="452" text-anchor="end">current</text>
+        <text class="lp-lab" x="504" y="468" text-anchor="end">value</text>
+        <text class="lp-lab" x="130" y="494" text-anchor="middle">Electrode</text>
+        <text class="lp-lab" x="130" y="511" text-anchor="middle">voltage tap U</text>
+
+        <rect class="lp-box" x="14" y="290" width="140" height="82" rx="6"/>
+        <text class="lp-t" x="26" y="314">R = U / I</text>
+        <text class="lp-v" x="26" y="338" id="ldR">0 µΩ</text>
+        <text class="lp-v" x="26" y="358" id="ldU">0.00 V</text>
+        <text class="lp-lab" x="92" y="204">Measured</text>
+        <text class="lp-lab" x="92" y="221">resistance</text>
+      </svg>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Nugget diameter results">
+        <h2>Weld nugget diameter (mm)</h2>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Standard (minimum)</th><th>Simulation target</th><th>Adaptive OFF</th><th>Adaptive ON</th></tr></thead>
+            <tbody>
+              <tr><td class="num">5.0</td><td class="num">6.6</td><td class="num" id="rOff">5.0</td><td class="num mark" id="rOn">6.4</td></tr>
+              <tr><td class="v na">minimum accepted</td><td class="v na">reference weld</td><td class="v" id="vtOff"></td><td class="v" id="vtOn"></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note" id="resultNote"></p>
+      </section>
+
+      <details class="notes">
+        <summary>About this model</summary>
+        <ul>
+          <li>This is a teaching model, not a finite-element weld simulation. Resistance, heat input and nugget growth are simplified so the control idea stays visible.</li>
+          <li>Calibration: the standard schedule holds 9.2 kA and gives a 5.0 mm nugget. The reference weld ran at about 10.2 kA and gives the 6.6 mm simulation result. With the Test 1 settings, Adaptive ON ends near 6.4 mm, the measured value on the slide.</li>
+          <li>The controller applies proportional action to the relative error between measured resistance and the reference curve, with the current limited to 12 kA. Production controllers add integral action, timing and expulsion limits.</li>
+          <li>Each disturbance changes only the heat that reaches the nugget. Real shunts and worn tips also change the measured voltage, which the machine has to interpret.</li>
+        </ul>
+      </details>
+    </aside>
+  </div>
+</main>
+
+<script>
+(function () {
+'use strict';
+/* ---- Weld model (teaching model, calibrated to the slide) ---- */
+var P = {
+  Iset: 9.22,     // kA, standard constant-current schedule (slide, Adaptive OFF)
+  Iref: 10.19,    // kA, current that produced the reference weld (slide, Adaptive ON)
+  Imax: 12.0,     // kA, machine current limit
+  tEnd: 200,      // ms
+  dt: 0.5,        // ms
+  tauRamp: 2.0,   // ms, current regulator time constant
+  tau0: 15,       // ms of heating before melting starts
+  dStd: 5.0,      // mm, minimum nugget by standard
+  dSim: 6.6,      // mm, simulated target nugget
+  K: 26           // controller gain on relative resistance error
+};
+
+function Rcurve(tau) { return 165 + 170 * Math.exp(-tau / 4) + 140 * Math.exp(-tau / 80); }
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* heating efficiency multiplier for each disturbance, scaled by severity 0..1 */
+function effAt(t, scen, sev) {
+  switch (scen) {
+    case 'shunt': return 1 - 0.22 * sev;                       // current diverted through a nearby weld
+    case 'worn':  return 1 - 0.15 * sev;                       // enlarged tip, lower current density
+    case 'coat':  return t < 40 ? 1 + 0.35 * sev : 1 + 0.08 * sev; // coating: extra early heating
+    default:      return 1;
+  }
+}
+
+/* reference weld: constant Iref through the same current regulator, no disturbance */
+function runReference() {
+  var n = Math.round(P.tEnd / P.dt) + 1, I = 0, tau = 0, ref = [], tauArr = [];
+  for (var i = 0; i < n; i++) {
+    ref.push(Rcurve(tau)); tauArr.push(tau);
+    I += (P.Iref - I) * (1 - Math.exp(-P.dt / P.tauRamp));
+    tau += Math.pow(I / P.Iref, 2) * P.dt;
+  }
+  return { R: ref, tau: tauArr, tauEnd: tauArr[tauArr.length - 1] };
+}
+
+var REF = runReference();
+
+function runPlain(adaptive, scen, sev) {
+  var n = Math.round(P.tEnd / P.dt) + 1, I = 0, tau = 0;
+  var o = { t: [], Icmd: [], Ic: [], I: [], U: [], R: [], Rref: [], d: [], e: [], tau: [], sat: [] };
+  for (var i = 0; i < n; i++) {
+    var t = i * P.dt;
+    var Rref = REF.R[i];
+    var R = Rcurve(tau);
+    var e = (R - Rref) / Rref;
+    var Icmd = P.Iset, sat = false;
+    if (adaptive) {
+      Icmd = P.Iset * (1 + P.K * e);
+      if (Icmd > P.Imax) { Icmd = P.Imax; sat = true; }
+      if (Icmd < 0.5 * P.Iset) Icmd = 0.5 * P.Iset;
+    }
+    I += (Icmd - I) * (1 - Math.exp(-P.dt / P.tauRamp));
+    var d = 0;
+    if (tau > P.tau0) d = P.dSim * Math.pow((tau - P.tau0) / (REF.tauEnd - P.tau0), P.b);
+    o.t.push(t); o.Icmd.push(Icmd); o.Ic.push(Icmd); o.I.push(I); o.R.push(R);
+    o.U.push(I * R / 1000); o.Rref.push(Rref); o.d.push(d); o.e.push(adaptive ? e : 0);
+    o.tau.push(tau); o.sat.push(sat);
+    tau += Math.pow(I / P.Iref, 2) * effAt(t, scen, sev) * P.dt;
+  }
+  return o;
+}
+
+/* calibrate the nugget exponent so the OFF run without disturbance gives exactly dStd */
+(function () {
+  P.b = 1;
+  var off = runPlain(false, 'none', 0);
+  var tauOff = off.tau[off.tau.length - 1];
+  P.b = Math.log(P.dStd / P.dSim) / Math.log((tauOff - P.tau0) / (REF.tauEnd - P.tau0));
+})();
+
+function simulate(adaptive, scen, sev) {
+  var o = runPlain(adaptive, scen, sev);
+  var rnd = mulberry32(adaptive ? 7 : 3);
+  var n = o.t.length;
+  o.Im = []; o.Rm = []; o.Um = [];
+  for (var i = 0; i < n; i++) {
+    var a = (rnd() - 0.5) * 0.008, b = (rnd() - 0.5) * 0.016;
+    var im = o.I[i] * (1 + a), rm = o.R[i] * (1 + b);
+    o.Im.push(im); o.Rm.push(rm); o.Um.push(im * rm / 1000);
+  }
+  o.dEnd = o.d[n - 1];
+  o.Ipeak = Math.max.apply(null, o.I.slice(Math.round(10 / P.dt)));
+  o.satMs = o.sat.filter(Boolean).length * P.dt;
+  return o;
+}
+
+if (typeof module !== 'undefined') module.exports = { P: P, simulate: simulate, REF: REF };
+
+
+var $ = function (s) { return document.querySelector(s); };
+var state = { scen: 'none', sev: 0.6, t: 200, playing: false, dur: 10, phase: 0, dirty: true };
+var SIM = {};
+var C = null;
+var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+var SCEN_INFO = {
+  none: 'Tip Ø8 mm, 90° to the sheet, nothing disturbing the weld. This is Test 1 on the slide.',
+  shunt: 'Part of the current leaks through a previous weld, so less heat reaches this nugget.',
+  worn: 'A mushroomed tip spreads the current over a larger area and lowers the current density.',
+  coat: 'A coating adds contact resistance. The sheets get extra heat early, then the coating burns off.'
+};
+
+function recompute() {
+  SIM.off = simulate(false, state.scen, state.sev);
+  SIM.on = simulate(true, state.scen, state.sev);
+}
+
+/* ---------- rig markup ---------- */
+function rigHTML(key, title, tag, note) {
+  var rd = [['t', 't (ms)', ''], ['I', 'I (kA)', 'ci'], ['U', 'U (V)', 'cu'], ['R', 'R (µΩ)', 'cr'], ['Ref', 'Ref R', '']];
+  var dl = rd.map(function (r) {
+    return '<div><dt>' + r[1] + '</dt><dd class="' + r[2] + '" id="rd' + key + r[0] + '">0</dd></div>';
+  }).join('');
+  return '<header class="rig-h"><h2>' + title + '</h2><span class="tag">' + tag + '</span></header>' +
+    '<canvas class="cell" id="cell' + key + '" role="img" aria-label="Cross-section of the electrodes and sheets with the growing weld nugget, ' + title + '"></canvas>' +
+    '<canvas class="chart" id="chart' + key + '" role="img" aria-label="Current, voltage and resistance against time, ' + title + '"></canvas>' +
+    '<dl class="readout">' + dl + '</dl>' +
+    '<div class="nug"><div><span class="lbl">Nugget diameter</span><span class="big"><b id="d' + key + '">0.0</b> mm</span></div><span class="badge" id="v' + key + '"></span></div>' +
+    '<p class="msg" id="msg' + key + '">' + note + '</p>';
+}
+(function () {
+  var duo = $('#duo');
+  var a = document.createElement('article'); a.className = 'rig off';
+  a.innerHTML = rigHTML('Off', 'Adaptive off', 'constant current, 9.2 kA', 'The current regulator holds the set value whatever the resistance does.');
+  var b = document.createElement('article'); b.className = 'rig on';
+  b.innerHTML = rigHTML('On', 'Adaptive on', 'resistance follows the reference curve', '');
+  duo.appendChild(a); duo.appendChild(b);
+})();
+
+/* ---------- canvas helpers ---------- */
+function readColors() {
+  var cs = getComputedStyle(document.documentElement);
+  var g = function (n) { return cs.getPropertyValue(n).trim(); };
+  C = { ink: g('--ink'), ink2: g('--ink2'), line: g('--line'), grid: g('--grid'), plot: g('--plot'), cellbg: g('--cellbg'),
+    accent: g('--accent'), i: g('--sig-i'), u: g('--sig-u'), r: g('--sig-r'), ref: g('--sig-ref'),
+    sheet: g('--sheet'), sheetEdge: g('--sheet-edge'), cu1: g('--cu1'), cu2: g('--cu2'), cu3: g('--cu3') };
+}
+function prep(cv) {
+  var r = cv.getBoundingClientRect();
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  var ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx: ctx, W: r.width, H: r.height };
+}
+var MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
+
+/* ---------- weld cell ---------- */
+function drawCell(cv, S, idx) {
+  var p = prep(cv), ctx = p.ctx, W = p.W, H = p.H;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = C.cellbg; ctx.fillRect(0, 0, W, H);
+  var mm = H / 23, cx = W / 2, yM = H * 0.5, th = 1.6 * mm;
+  var yT1 = yM - th, yT2 = yM + th;
+  var I = S.I[idx], tau = S.tau[idx], d = S.d[idx];
+  var heat = clamp(tau / 110, 0, 1);
+  var tipW = 4 * mm, bodyW = 7.4 * mm, coneH = 4.4 * mm, bodyH = 5.4 * mm;
+
+  // sheets
+  ctx.fillStyle = C.sheet; ctx.fillRect(0, yT1, W, th * 2);
+  if (heat > 0) {
+    var rg = ctx.createRadialGradient(cx, yM, 0, cx, yM, mm * (2 + 7 * heat));
+    rg.addColorStop(0, 'rgba(255,150,40,' + (0.6 * heat).toFixed(3) + ')');
+    rg.addColorStop(1, 'rgba(255,150,40,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, yT1, W, th * 2);
+  }
+  ctx.strokeStyle = C.sheetEdge; ctx.lineWidth = 1.5; ctx.strokeRect(-2, yT1, W + 4, th * 2);
+  ctx.setLineDash([5, 4]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, yM); ctx.lineTo(W, yM); ctx.stroke(); ctx.setLineDash([]);
+
+  // nugget or contact patch
+  if (d > 0.05) {
+    var rx = d / 2 * mm, ry = Math.min(d * 0.27, 1.45) * mm;
+    var ng = ctx.createRadialGradient(cx, yM, 0, cx, yM, Math.max(rx, 2));
+    ng.addColorStop(0, '#fffbe0'); ng.addColorStop(0.45, '#ffc04d'); ng.addColorStop(1, '#e8590c');
+    ctx.beginPath(); ctx.ellipse(cx, yM, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = ng; ctx.fill(); ctx.strokeStyle = 'rgba(110,40,0,0.7)'; ctx.lineWidth = 1.2; ctx.stroke();
+  } else if (tau > 1.5) {
+    var a = clamp(tau / P.tau0, 0, 1);
+    ctx.beginPath(); ctx.ellipse(cx, yM, (0.6 + 2.4 * a) * mm, 0.35 * mm, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,195,90,' + (0.35 + 0.55 * a).toFixed(3) + ')'; ctx.fill();
+  }
+
+  // electrodes
+  function electrode(dir) {
+    var y0 = dir < 0 ? yT1 : yT2;
+    var yCone = y0 + dir * coneH, yEnd = y0 + dir * (coneH + bodyH);
+    ctx.beginPath();
+    ctx.moveTo(cx - tipW, y0); ctx.lineTo(cx + tipW, y0); ctx.lineTo(cx + bodyW, yCone); ctx.lineTo(cx + bodyW, yEnd);
+    ctx.lineTo(cx - bodyW, yEnd); ctx.lineTo(cx - bodyW, yCone); ctx.closePath();
+    var g = ctx.createLinearGradient(cx - bodyW, 0, cx + bodyW, 0);
+    g.addColorStop(0, C.cu3); g.addColorStop(0.35, C.cu1); g.addColorStop(0.62, C.cu2); g.addColorStop(1, C.cu3);
+    ctx.fillStyle = g; ctx.fill();
+    if (heat > 0) {
+      ctx.save(); ctx.clip();
+      var tg = ctx.createRadialGradient(cx, y0, 0, cx, y0, tipW * 1.6);
+      tg.addColorStop(0, 'rgba(255,200,90,' + (0.7 * heat).toFixed(3) + ')'); tg.addColorStop(1, 'rgba(255,200,90,0)');
+      ctx.fillStyle = tg; ctx.fillRect(cx - bodyW, Math.min(y0, yEnd), bodyW * 2, Math.abs(yEnd - y0)); ctx.restore();
+    }
+    ctx.strokeStyle = C.cu3; ctx.lineWidth = 1.2; ctx.beginPath();
+    ctx.moveTo(cx - tipW, y0); ctx.lineTo(cx + tipW, y0); ctx.lineTo(cx + bodyW, yCone); ctx.lineTo(cx + bodyW, yEnd);
+    ctx.lineTo(cx - bodyW, yEnd); ctx.lineTo(cx - bodyW, yCone); ctx.closePath(); ctx.stroke();
+  }
+  electrode(-1); electrode(1);
+
+  // current flow lines
+  if (I > 0.3) {
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.setLineDash([9, 9]); ctx.lineDashOffset = -state.phase;
+    ctx.strokeStyle = C.i; ctx.globalAlpha = 0.45 + 0.5 * clamp(I / P.Imax, 0, 1);
+    ctx.lineWidth = 1.4 + 2 * clamp(I / P.Imax, 0, 1);
+    for (var k = -3; k <= 3; k++) {
+      ctx.beginPath();
+      ctx.moveTo(cx + k * 1.9 * mm, yT1 - 9.6 * mm);
+      ctx.lineTo(cx + k * 1.9 * mm, yT1 - coneH);
+      ctx.lineTo(cx + k * 0.55 * mm, yT1);
+      ctx.lineTo(cx + k * 0.8 * mm, yM);
+      ctx.lineTo(cx + k * 0.55 * mm, yT2);
+      ctx.lineTo(cx + k * 1.9 * mm, yT2 + coneH);
+      ctx.lineTo(cx + k * 1.9 * mm, yT2 + 9.6 * mm);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // force arrows
+  ctx.strokeStyle = C.ink2; ctx.fillStyle = C.ink2; ctx.lineWidth = 2;
+  function arrow(x, y1, y2) {
+    var s = y2 > y1 ? 1 : -1;
+    ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2 - s * 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y2); ctx.lineTo(x - 5, y2 - s * 9); ctx.lineTo(x + 5, y2 - s * 9); ctx.closePath(); ctx.fill();
+  }
+  var fx = cx - bodyW - 26;
+  arrow(fx, yT1 - 8.6 * mm, yT1 - 4.4 * mm); arrow(fx, yT2 + 8.6 * mm, yT2 + 4.4 * mm);
+  ctx.font = '500 12px ' + MONO; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('F', fx + 10, yT1 - 6.5 * mm); ctx.fillText('F', fx + 10, yT2 + 6.5 * mm);
+
+  // labels
+  ctx.fillStyle = C.ink; ctx.font = '500 12px ' + MONO;
+  ctx.fillText('T1', 10, yM - th / 2); ctx.fillText('T2', 10, yM + th / 2);
+  ctx.fillStyle = C.ink2;
+  ctx.fillText('Tip Ø8 mm', cx + 5.6 * mm, yT1 - 1.1 * mm);
+
+  // standard 5.0 mm marker
+  ctx.save();
+  ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.75; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
+  [-2.5, 2.5].forEach(function (s) { ctx.beginPath(); ctx.moveTo(cx + s * mm, yT1 + 2); ctx.lineTo(cx + s * mm, yT2 - 2); ctx.stroke(); });
+  ctx.restore();
+  ctx.fillStyle = C.ink; ctx.font = '500 11px ' + MONO; ctx.textAlign = 'right';
+  ctx.fillText('min Ø5.0', cx - 4.3 * mm, yM - th * 0.55);
+
+  // nugget dimension
+  if (d > 0.05) {
+    var xr = cx + d / 2 * mm;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(xr + 2, yM); ctx.lineTo(cx + 8.6 * mm, yM); ctx.stroke();
+    ctx.fillStyle = C.ink; ctx.font = '500 14px ' + MONO; ctx.textAlign = 'left';
+    ctx.fillText('Ø ' + d.toFixed(1) + ' mm', cx + 8.9 * mm, yM + 1);
+  }
+}
+
+/* ---------- signal chart ---------- */
+function drawChart(cv, S, idx) {
+  var p = prep(cv), ctx = p.ctx, W = p.W, H = p.H;
+  ctx.clearRect(0, 0, W, H);
+  var narrow = W < 420;
+  var m = { l: 40, r: narrow ? 96 : 108, t: 24, b: 30 };
+  var pw = W - m.l - m.r, ph = H - m.t - m.b;
+  var X = function (t) { return m.l + t / P.tEnd * pw; };
+  var yI = function (v) { return m.t + ph * (1 - v / 12); };
+  var yR = function (v) { return m.t + ph * (1 - v / 600); };
+  var yU = function (v) { return m.t + ph * (1 - v / 4.8); };
+
+  ctx.fillStyle = C.plot; ctx.fillRect(m.l, m.t, pw, ph);
+  ctx.lineWidth = 1; ctx.strokeStyle = C.grid;
+  var k, x, y;
+  for (k = 0; k <= 6; k++) { y = Math.round(m.t + ph * k / 6) + 0.5; ctx.beginPath(); ctx.moveTo(m.l, y); ctx.lineTo(m.l + pw, y); ctx.stroke(); }
+  for (var tt = 0; tt <= 200; tt += 25) { x = Math.round(X(tt)) + 0.5; ctx.beginPath(); ctx.moveTo(x, m.t); ctx.lineTo(x, m.t + ph); ctx.stroke(); }
+  ctx.strokeStyle = C.line; ctx.strokeRect(m.l + 0.5, m.t + 0.5, pw, ph);
+
+  ctx.font = '400 11px ' + MONO; ctx.textBaseline = 'middle';
+  ctx.textAlign = 'right'; ctx.fillStyle = C.i;
+  for (k = 0; k <= 6; k++) ctx.fillText(String(k * 2), m.l - 6, yI(k * 2));
+  ctx.textAlign = 'left'; ctx.fillStyle = C.r;
+  for (k = 0; k <= 6; k++) ctx.fillText(String(k * 100), m.l + pw + 6, yR(k * 100));
+  var ux = m.l + pw + 58;
+  ctx.fillStyle = C.u;
+  for (k = 0; k <= 6; k++) ctx.fillText((k * 0.8).toFixed(1), ux, yU(k * 0.8));
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = C.i; ctx.textAlign = 'right'; ctx.fillText('I (kA)', m.l, 14);
+  ctx.textAlign = 'left'; ctx.fillStyle = C.r; ctx.fillText('R (µΩ)', m.l + pw + 6, 14);
+  ctx.fillStyle = C.u; ctx.fillText('U (V)', ux, 14);
+  ctx.fillStyle = C.ink2; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var tl = 0; tl <= 200; tl += 50) ctx.fillText(String(tl), X(tl), m.t + ph + 14);
+  ctx.fillText('t (ms)', m.l + pw / 2, m.t + ph + 26);
+
+  function trace(arr, ymap, n, col, lw, alpha, dash) {
+    ctx.beginPath();
+    for (var i = 0; i <= n; i++) { var px = X(S.t[i]), py = ymap(arr[i]); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+    ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.globalAlpha = alpha; ctx.setLineDash(dash || []); ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  var last = S.t.length - 1;
+  ctx.save(); ctx.beginPath(); ctx.rect(m.l, m.t, pw, ph); ctx.clip();
+  trace(S.Rref, yR, last, C.ref, 1.2, 0.18, [5, 4]);
+  trace(S.Rm, yR, last, C.r, 1.2, 0.2);
+  trace(S.Um, yU, last, C.u, 1.2, 0.2);
+  trace(S.Im, yI, last, C.i, 1.2, 0.2);
+  trace(S.Rref, yR, idx, C.ref, 1.8, 0.95, [6, 4]);
+  trace(S.Rm, yR, idx, C.r, 1.8, 1);
+  trace(S.Um, yU, idx, C.u, 1.8, 1);
+  trace(S.Im, yI, idx, C.i, 1.8, 1);
+  ctx.restore();
+
+  // playhead
+  var px = X(S.t[idx]);
+  ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(px, m.t); ctx.lineTo(px, m.t + ph); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  [[S.Im[idx], yI, C.i], [S.Um[idx], yU, C.u], [S.Rm[idx], yR, C.r]].forEach(function (q) {
+    var yy = clamp(q[1](q[0]), m.t, m.t + ph);
+    ctx.beginPath(); ctx.arc(px, yy, 3.5, 0, Math.PI * 2); ctx.fillStyle = q[2]; ctx.fill();
+  });
+}
+
+/* ---------- text updates ---------- */
+function f1(v) { return v.toFixed(1); }
+function verdict(d) { return d >= P.dStd - 0.005 ? { t: 'Meets standard', c: 'ok' } : { t: 'Below standard', c: 'bad' }; }
+
+function phaseText(t) {
+  if (t < 6) return 'Current ramps up through the electrodes. The contact between the sheets starts at a very high resistance.';
+  if (t < 30) return 'Contact resistance collapses as the surfaces soften and the contact patch grows. Heat concentrates at the sheet interface.';
+  if (t < 170) return 'Nugget growth. Adaptive ON compares the measured resistance with the reference curve and trims the current. Adaptive OFF holds 9.2 kA.';
+  return 'Weld time is over. The nugget diameter is now fixed.';
+}
+
+function controllerMsg(S, idx) {
+  var t = S.t[idx];
+  if (t < 6) return 'Waiting for the current to settle before the regulator reacts.';
+  var e = S.e[idx] * 100, I = S.Icmd[idx], s = '';
+  if (Math.abs(e) < 1) s = 'Measured R is within 1 % of the reference curve. Command held near ' + f1(I) + ' kA.';
+  else if (e > 0) s = 'Measured R is ' + f1(e) + ' % above the reference, so the sheets are under-heated. Command raised to ' + f1(I) + ' kA.';
+  else s = 'Measured R is ' + f1(-e) + ' % below the reference, so the sheets are over-heated. Command lowered to ' + f1(I) + ' kA.';
+  if (S.sat[idx]) s += ' The ' + P.Imax + ' kA machine limit is reached.';
+  return s;
+}
+
+function updateRig(key, S, idx) {
+  $('#rd' + key + 't').textContent = S.t[idx].toFixed(0);
+  $('#rd' + key + 'I').textContent = S.Im[idx].toFixed(2);
+  $('#rd' + key + 'U').textContent = S.Um[idx].toFixed(2);
+  $('#rd' + key + 'R').textContent = S.Rm[idx].toFixed(0);
+  $('#rd' + key + 'Ref').textContent = S.Rref[idx].toFixed(0);
+  var d = S.d[idx];
+  $('#d' + key).textContent = f1(d);
+  var v = verdict(S.dEnd), b = $('#v' + key);
+  b.textContent = 'Final ' + f1(S.dEnd) + ' mm · ' + v.t; b.className = 'badge ' + v.c;
+}
+
+function updateLoop(idx) {
+  var S = SIM.on;
+  $('#ldRref').textContent = S.Rref[idx].toFixed(0) + ' µΩ';
+  var e = S.e[idx] * 100;
+  $('#ldE').textContent = (e >= 0 ? '+' : '−') + Math.abs(e).toFixed(1) + ' %';
+  $('#ldIcmd').textContent = 'I_cmd ' + S.Icmd[idx].toFixed(1) + ' kA';
+  $('#ldI').textContent = 'I ' + S.Im[idx].toFixed(1) + ' kA';
+  $('#ldR').textContent = 'R ' + S.Rm[idx].toFixed(0) + ' µΩ';
+  $('#ldU').textContent = 'U ' + S.Um[idx].toFixed(2) + ' V';
+  var d = S.d[idx];
+  $('#ldD').textContent = 'Ø ' + f1(d) + ' mm';
+  var n = $('#ldNug');
+  n.setAttribute('rx', Math.max(d * 2.5, 0.5).toFixed(1));
+  n.setAttribute('ry', Math.max(Math.min(d * 1.35, 7.2), 0.5).toFixed(1));
+}
+
+function updateResults() {
+  var off = SIM.off, on = SIM.on;
+  $('#rOff').textContent = f1(off.dEnd); $('#rOn').textContent = f1(on.dEnd);
+  var vo = verdict(off.dEnd), vn = verdict(on.dEnd);
+  var a = $('#vtOff'), b = $('#vtOn');
+  a.textContent = vo.t; a.className = 'v ' + vo.c; b.textContent = vn.t; b.className = 'v ' + vn.c;
+  var lo = Infinity, hi = 0;
+  for (var i = Math.round(10 / P.dt); i < on.Icmd.length; i++) { lo = Math.min(lo, on.Icmd[i]); hi = Math.max(hi, on.Icmd[i]); }
+  var s = 'Adaptive ON varied the current between ' + f1(lo) + ' and ' + f1(hi) + ' kA (standard set value ' + P.Iset.toFixed(1) + ' kA).';
+  if (on.satMs > 0) s += ' The ' + P.Imax + ' kA machine limit was reached for ' + on.satMs.toFixed(1) + ' ms.';
+  if (state.scen !== 'none') s += ' Compared with Test 1, the disturbance moved the OFF nugget by ' + ((off.dEnd - P.dStd) >= 0 ? '+' : '−') + Math.abs(off.dEnd - P.dStd).toFixed(1) + ' mm and the ON nugget by ' + ((on.dEnd - 6.4) >= 0 ? '+' : '−') + Math.abs(on.dEnd - 6.4).toFixed(1) + ' mm.';
+  $('#resultNote').textContent = s;
+}
+
+function updateScenUI() {
+  $('#scenInfo').textContent = SCEN_INFO[state.scen];
+  var sev = $('#sev');
+  sev.disabled = state.scen === 'none';
+  $('#sevlabel').textContent = state.scen === 'none' ? '0 %' : Math.round(state.sev * 100) + ' %';
+}
+
+function updatePlayBtn() {
+  var icoPlay = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1 L13 7 L2 13 Z"/></svg>';
+  var icoPause = '<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>';
+  var b = $('#play');
+  if (state.playing) b.innerHTML = icoPause + 'Pause';
+  else b.innerHTML = icoPlay + (state.t >= P.tEnd ? 'Replay' : 'Play');
+  $('#loopwrap').classList.toggle('is-paused', !state.playing);
+}
+
+/* ---------- render ---------- */
+function render() {
+  if (!C) readColors();
+  var idx = clamp(Math.round(state.t / P.dt), 0, SIM.on.t.length - 1);
+  drawCell($('#cellOff'), SIM.off, idx); drawChart($('#chartOff'), SIM.off, idx);
+  drawCell($('#cellOn'), SIM.on, idx); drawChart($('#chartOn'), SIM.on, idx);
+  updateRig('Off', SIM.off, idx); updateRig('On', SIM.on, idx);
+  updateLoop(idx);
+  $('#msgOn').textContent = controllerMsg(SIM.on, idx);
+  $('#phase').textContent = phaseText(state.t);
+  $('#tlabel').textContent = state.t.toFixed(0) + ' ms';
+  var sc = $('#scrub'); if (+sc.value !== state.t) sc.value = state.t;
+}
+
+var lastTs = performance.now();
+function frame(now) {
+  var dtReal = Math.min(0.1, (now - lastTs) / 1000); lastTs = now;
+  if (state.playing) {
+    state.t += dtReal * (P.tEnd / state.dur);
+    if (state.t >= P.tEnd) { state.t = P.tEnd; state.playing = false; updatePlayBtn(); }
+    if (!reduceMotion) state.phase += dtReal * 70;
+    state.dirty = true;
+  }
+  if (state.dirty) { state.dirty = false; render(); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- events ---------- */
+$('#play').addEventListener('click', function () {
+  if (state.playing) { state.playing = false; }
+  else { if (state.t >= P.tEnd) state.t = 0; state.playing = true; }
+  updatePlayBtn(); state.dirty = true;
+});
+$('#restart').addEventListener('click', function () { state.t = 0; state.playing = true; updatePlayBtn(); state.dirty = true; });
+$('#scrub').addEventListener('input', function (e) {
+  state.t = parseFloat(e.target.value); state.playing = false; updatePlayBtn(); state.dirty = true;
+});
+Array.prototype.forEach.call(document.querySelectorAll('input[name=speed]'), function (el) {
+  el.addEventListener('change', function () { state.dur = parseFloat(el.value); });
+});
+Array.prototype.forEach.call(document.querySelectorAll('input[name=scen]'), function (el) {
+  el.addEventListener('change', function () {
+    state.scen = el.value; recompute(); updateScenUI(); updateResults(); state.dirty = true;
+  });
+});
+$('#sev').addEventListener('input', function (e) {
+  state.sev = parseFloat(e.target.value) / 100; recompute(); updateScenUI(); updateResults(); state.dirty = true;
+});
+
+window.addEventListener('resize', function () { state.dirty = true; });
+if (window.ResizeObserver) new ResizeObserver(function () { state.dirty = true; }).observe($('#app'));
+function themeChanged() { C = null; state.dirty = true; }
+if (window.matchMedia) {
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  if (mq.addEventListener) mq.addEventListener('change', themeChanged);
+}
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { state.dirty = true; });
+
+/* ---------- start ---------- */
+recompute(); updateScenUI(); updateResults(); updatePlayBtn();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

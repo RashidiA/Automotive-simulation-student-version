@@ -1,0 +1,892 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Automotive Welding Math Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout concept: one-screen instrument panel. Header holds the process selector and playback. Below: equations (all three, selected one expanded) | process close-up with readouts and parameters | inputs and output charts against time. Each process owns a colour: copper (spot), blue (GMAW), violet (laser). */
+:root {
+  --bg: #edf0f4;
+  --panel: #f8f9fb;
+  --panel2: #e5eaf0;
+  --ink: #0f2540;
+  --ink2: #4a5b70;
+  --line: #c8d0db;
+  --grid: #dde3ea;
+  --plot: #fcfdfe;
+  --cellbg: #eef1f5;
+  --c-spot: #b2500d;
+  --c-gmaw: #1f5ec0;
+  --c-laser: #8a3fc9;
+  --pc: var(--c-spot);
+  --pc-ink: #ffffff;
+  --sig-i: #c62d2d;
+  --sig-v: #2457c5;
+  --sig-s: #17837a;
+  --sig-r: #1c8444;
+  --sig-p: #b0237a;
+  --good: #17703f;
+  --good-bg: #dcefe3;
+  --bad: #a8261d;
+  --bad-bg: #f6dedb;
+  --sheet: #a9b6c4;
+  --sheet2: #bfc9d5;
+  --sheet-edge: #5d7084;
+  --cu1: #eba56d;
+  --cu2: #c06a31;
+  --cu3: #7d3b14;
+  --weld1: #fff0b8;
+  --weld2: #f08a24;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-math: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c131b;
+    --panel: #131c26;
+    --panel2: #1c2733;
+    --ink: #e6edf5;
+    --ink2: #9fb2c5;
+    --line: #2a3948;
+    --grid: #1f2c39;
+    --plot: #0f1820;
+    --cellbg: #0f1820;
+    --c-spot: #f0924a;
+    --c-gmaw: #7aa8ff;
+    --c-laser: #c59bff;
+    --pc-ink: #10151f;
+    --sig-i: #ff6f61;
+    --sig-v: #74a4ff;
+    --sig-s: #4fd1c1;
+    --sig-r: #4fd17f;
+    --sig-p: #ff7ac8;
+    --good: #7fdca2;
+    --good-bg: #17382a;
+    --bad: #ff9a90;
+    --bad-bg: #44201d;
+    --sheet: #46586b;
+    --sheet2: #566a80;
+    --sheet-edge: #8fa5ba;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c131b;
+  --panel: #131c26;
+  --panel2: #1c2733;
+  --ink: #e6edf5;
+  --ink2: #9fb2c5;
+  --line: #2a3948;
+  --grid: #1f2c39;
+  --plot: #0f1820;
+  --cellbg: #0f1820;
+  --c-spot: #f0924a;
+  --c-gmaw: #7aa8ff;
+  --c-laser: #c59bff;
+  --pc-ink: #10151f;
+  --sig-i: #ff6f61;
+  --sig-v: #74a4ff;
+  --sig-s: #4fd1c1;
+  --sig-r: #4fd17f;
+  --sig-p: #ff7ac8;
+  --good: #7fdca2;
+  --good-bg: #17382a;
+  --bad: #ff9a90;
+  --bad-bg: #44201d;
+  --sheet: #46586b;
+  --sheet2: #566a80;
+  --sheet-edge: #8fa5ba;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3, p { margin: 0; }
+.app { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+/* header */
+.top { display: flex; flex-direction: column; gap: 12px; }
+.titleblk { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { align-self: flex-start; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 11px; border-radius: 999px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(32px, 6vw, 48px); line-height: 1; text-wrap: balance; }
+.procsel { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 8px; }
+.proc { position: relative; display: block; }
+.proc input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.proc label {
+  display: flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 54px; padding: 6px 14px;
+  background: var(--panel); border: 2px solid var(--line); border-radius: 8px; cursor: pointer;
+}
+.proc b { font-family: var(--font-display); font-size: 22px; line-height: 1.1; letter-spacing: 0.01em; text-transform: uppercase; }
+.proc small { font-size: 12.5px; color: var(--ink2); }
+.proc.spot { --p: var(--c-spot); } .proc.gmaw { --p: var(--c-gmaw); } .proc.laser { --p: var(--c-laser); }
+.proc input:hover + label { border-color: var(--p); }
+.proc input:checked + label { background: var(--p); border-color: var(--p); color: var(--pc-ink); }
+.proc input:checked + label small { color: var(--pc-ink); opacity: 0.9; }
+.proc input:focus-visible + label { outline: 3px solid var(--p); outline-offset: 2px; }
+.play { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn {
+  font: 600 14px var(--font-body); color: var(--ink); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 12px; min-height: 36px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn:hover { border-color: var(--ink2); }
+.btn.primary { background: var(--pc); color: var(--pc-ink); border-color: var(--pc); min-width: 100px; justify-content: center; }
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.btn:focus-visible, input[type=range]:focus-visible, .eqcard:focus-visible, .seg input:focus-visible + label { outline: 3px solid var(--pc); outline-offset: 2px; }
+.seg { position: relative; display: inline-flex; }
+.seg input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.seg label { font: 500 13px var(--font-body); color: var(--ink); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; min-height: 32px; display: inline-flex; align-items: center; cursor: pointer; }
+.seg input:checked + label { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.scrub { display: flex; align-items: center; gap: 10px; }
+.scrub input[type=range] { flex: 1; min-width: 0; }
+input[type=range] { accent-color: var(--pc); height: 24px; }
+.lab { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); white-space: nowrap; }
+.tval { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; min-width: 8ch; text-align: right; white-space: nowrap; }
+
+/* stage */
+.stage { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.panel-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.panel h2 { font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.1; letter-spacing: 0.01em; text-transform: uppercase; }
+.tag { font-family: var(--font-mono); font-size: 12px; color: var(--ink2); }
+
+/* equation cards */
+.eqcard { background: var(--panel); border: 2px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.eqcard.spot { --p: var(--c-spot); } .eqcard.gmaw { --p: var(--c-gmaw); } .eqcard.laser { --p: var(--c-laser); }
+.eqcard:hover { border-color: var(--p); }
+.eqcard.sel { border-color: var(--p); box-shadow: inset 5px 0 0 var(--p); }
+.eqcard header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; }
+.eqcard h3 { font-family: var(--font-display); font-weight: 700; font-size: 20px; text-transform: uppercase; letter-spacing: 0.01em; color: var(--p); line-height: 1.1; }
+.chip { font-size: 12px; color: var(--ink2); }
+.eqbody { overflow-x: auto; }
+math { font-family: var(--font-math); font-size: 21px; color: var(--ink); }
+math[display="block"] { margin: 2px 0; }
+mtd { padding: 1px 4px; }
+mtd:first-child { text-align: right; }
+mtd:last-child { text-align: left; }
+.eqmore { display: none; flex-direction: column; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.eqcard.sel .eqmore { display: flex; }
+.where { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 10px; margin: 0; font-size: 13px; }
+.where dt { font-family: var(--font-math); font-style: italic; font-size: 15px; color: var(--ink); text-align: right; }
+.where dd { margin: 0; color: var(--ink2); }
+.io { font-size: 13px; color: var(--ink2); }
+.io b { color: var(--ink); font-weight: 600; }
+.remark { font-size: 13px; color: var(--ink2); margin: 0; padding-left: 18px; }
+.solved { font-size: 12px; color: var(--ink2); }
+
+/* simulation column */
+canvas { display: block; width: 100%; height: auto; border-radius: 4px; }
+canvas.scene { aspect-ratio: 560 / 330; background: var(--cellbg); }
+canvas.chart { border: 1px solid var(--line); background: var(--plot); }
+canvas.chart.small { aspect-ratio: 560 / 120; }
+canvas.chart.big { aspect-ratio: 560 / 250; }
+.readout { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.readout div { background: var(--panel2); border-radius: 4px; padding: 4px 8px; min-width: 0; }
+.readout dt { font-size: 12px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+.readout dd { margin: 0; font-family: var(--font-mono); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.readout .hl { background: var(--pc); } .readout .hl dt, .readout .hl dd { color: var(--pc-ink); }
+.stat { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
+.stat .lbl { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); }
+.stat .big { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--ink2); }
+.stat .big b { font-size: 42px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.badge { font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; }
+.badge.ok { background: var(--good-bg); color: var(--good); } .badge.bad { background: var(--bad-bg); color: var(--bad); }
+.msg { font-size: 13.5px; color: var(--ink2); min-height: 2.7em; }
+.ctrls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 6px 18px; }
+.ctrl { display: grid; grid-template-columns: minmax(6.5em, auto) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.ctrl .nm { font-size: 13px; font-weight: 500; white-space: nowrap; }
+.segrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; grid-column: 1 / -1; }
+.segrow .lab { min-width: 6.5em; }
+.notice { font-size: 12.5px; color: var(--ink2); }
+details.notes { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+details.notes summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+details.notes ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--ink2); }
+table.props { border-collapse: collapse; font-size: 12px; margin-top: 8px; width: 100%; }
+table.props th, table.props td { border: 1px solid var(--line); padding: 2px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+table.props th:first-child, table.props td:first-child { text-align: left; }
+
+@media (min-width: 1100px) and (min-height: 760px) {
+  html, body { height: 100%; }
+  body { padding-block: 10px; }
+  .app { max-width: none; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+  .top { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 0.62fr); gap: 14px; align-items: center; }
+  h1 { font-size: 36px; }
+  .procsel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .proc label { min-height: 52px; padding: 4px 12px; }
+  .proc b { font-size: 21px; }
+  .stage { display: grid; grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; min-height: 0; }
+  .col { min-height: 0; gap: 8px; }
+  .eqcol { overflow: auto; }
+  .eqcard { padding: 6px 10px; gap: 3px; }
+  math { font-size: 19px; }
+  .panel { padding: 8px 10px; gap: 6px; }
+  canvas.scene { flex: 1 1 0; min-height: 150px; aspect-ratio: auto; height: auto; }
+  canvas.chart.small { flex: 1 1 0; min-height: 60px; aspect-ratio: auto; height: auto; }
+  canvas.chart.big { flex: 2.3 1 0; min-height: 120px; aspect-ratio: auto; height: auto; }
+  .simcol .panel.main { flex: 1 1 0; min-height: 0; }
+  .chartcol .panel { flex: 1 1 0; min-height: 0; }
+  .ctrl .nm { font-size: 12.5px; }
+  .msg { min-height: 2.5em; font-size: 13px; }
+}
+@media (max-width: 560px) { .readout { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+
+<main class="app" id="app">
+  <header class="top">
+    <div class="titleblk">
+      <p class="eyebrow">Stage 4 · AI &amp; Digital Twin</p>
+      <h1>Automotive Welding Math</h1>
+    </div>
+    <fieldset class="procsel" aria-label="Choose the welding process to simulate">
+      <span class="proc spot"><input type="radio" name="proc" id="pr-spot" value="spot" checked><label for="pr-spot"><b>Spot welding</b><small>Output: nugget diameter</small></label></span>
+      <span class="proc gmaw"><input type="radio" name="proc" id="pr-gmaw" value="gmaw"><label for="pr-gmaw"><b>GMAW</b><small>Output: penetration depth</small></label></span>
+      <span class="proc laser"><input type="radio" name="proc" id="pr-laser" value="laser"><label for="pr-laser"><b>Laser welding</b><small>Output: penetration depth</small></label></span>
+    </fieldset>
+    <div class="play">
+      <div class="row">
+        <button class="btn primary" id="play" type="button"></button>
+        <button class="btn" id="restart" type="button">Restart</button>
+        <span class="seg"><input type="radio" name="speed" id="sp4" value="4"><label for="sp4">Fast</label></span>
+        <span class="seg"><input type="radio" name="speed" id="sp8" value="8" checked><label for="sp8">Normal</label></span>
+        <span class="seg"><input type="radio" name="speed" id="sp16" value="16"><label for="sp16">Slow</label></span>
+      </div>
+      <div class="scrub">
+        <label for="scrub" class="lab">Time</label>
+        <input type="range" id="scrub" min="0" max="1000" step="1" value="1000">
+        <output class="tval" id="tlabel" for="scrub">0 ms</output>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <section class="col eqcol" aria-label="Equations">
+      <article class="eqcard spot sel" id="eq-spot" data-proc="spot" role="button" tabindex="0" aria-label="Spot welding equation. Select to simulate.">
+        <header><h3>Spot welding</h3><span class="chip">Energy balance / thermal model</span></header>
+        <div class="eqbody">
+          <math display="block"><mtable>
+            <mtr><mtd columnalign="right"><mi>k</mi><msup><mi>I</mi><mn>2</mn></msup><mi>R</mi><mi>t</mi></mtd><mtd><mo>=</mo></mtd><mtd columnalign="left"><msub><mi>J</mi><mi>v</mi></msub><mi>V</mi></mtd></mtr>
+            <mtr><mtd></mtd><mtd><mo>=</mo></mtd><mtd columnalign="left"><mi>c</mi><mi>ρ</mi><msub><mi>T</mi><mi>m</mi></msub><mi>V</mi></mtd></mtr>
+            <mtr><mtd></mtd><mtd><mo>=</mo></mtd><mtd columnalign="left"><mi>c</mi><mi>ρ</mi><msub><mi>T</mi><mi>m</mi></msub><mi>A</mi><mi>L</mi></mtd></mtr>
+            <mtr><mtd></mtd><mtd><mo>=</mo></mtd><mtd columnalign="left"><mi>c</mi><mi>ρ</mi><msub><mi>T</mi><mi>m</mi></msub><mo stretchy="false">[</mo><mi>π</mi><mfrac><msup><mi>d</mi><mn>2</mn></msup><mn>4</mn></mfrac><mo stretchy="false">]</mo><mi>L</mi></mtd></mtr>
+          </mtable></math>
+        </div>
+        <div class="eqmore">
+          <p class="solved">Solved for d and used in the simulation, with R changing during the weld:</p>
+          <math display="block"><mi>d</mi><mo>=</mo><msqrt><mfrac><mrow><mn>4</mn><mi>k</mi><mo>∫</mo><msup><mi>I</mi><mn>2</mn></msup><mi>R</mi><mspace width="0.2em"/><mi>d</mi><mi>t</mi></mrow><mrow><mi>π</mi><mi>c</mi><mi>ρ</mi><msub><mi>T</mi><mi>m</mi></msub><mi>L</mi></mrow></mfrac></msqrt></math>
+          <dl class="where">
+            <dt>t</dt><dd>Welding time, sec</dd>
+            <dt>V</dt><dd>Weld nugget volume, mm³</dd>
+            <dt>A</dt><dd>Weld surface area, mm²</dd>
+            <dt>d</dt><dd>Weld nugget diameter, mm</dd>
+            <dt>L</dt><dd>Total thickness (panel combination), mm</dd>
+            <dt>k</dt><dd>Share of the electrical heat that melts the nugget (set here)</dd>
+          </dl>
+          <p class="io"><b>Input:</b> welding current and weld time. <b>Output:</b> spot nugget diameter.</p>
+          <ul class="remark"><li>Can combine with an empirical model, for example by adding weld force as another input.</li><li>Can estimate different materials, because the material properties are provided.</li></ul>
+        </div>
+      </article>
+
+      <article class="eqcard gmaw" id="eq-gmaw" data-proc="gmaw" role="button" tabindex="0" aria-label="GMAW equation. Select to simulate.">
+        <header><h3>GMAW</h3><span class="chip">Empirical / statistic</span></header>
+        <div class="eqbody">
+          <math display="block"><mrow><mtext>Weld Penetration, </mtext><mi>P</mi><mo>=</mo><mi>K</mi><msup><mrow><mo>(</mo><mfrac><msup><mi>I</mi><mn>4</mn></msup><mrow><mi>S</mi><msup><mi>V</mi><mn>2</mn></msup></mrow></mfrac><mo>)</mo></mrow><mn>0.333</mn></msup></mrow></math>
+        </div>
+        <div class="eqmore">
+          <dl class="where">
+            <dt>K</dt><dd>Welding wire diameter constant</dd>
+            <dt>I</dt><dd>Welding current, Amp</dd>
+            <dt>S</dt><dd>Weld travelling speed, mm/min</dd>
+            <dt>V</dt><dd>Arc voltage, Volt</dd>
+          </dl>
+          <p class="io"><b>Input:</b> current, arc voltage and travel speed. <b>Output:</b> weld penetration (depth).</p>
+          <p class="io"><b>Growth in time:</b> <math><mrow><mi>D</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><msqrt><mrow><mfrac><mn>1</mn><mi>T</mi></mfrac><msubsup><mo>∫</mo><mn>0</mn><mi>t</mi></msubsup><msup><mi>P</mi><mn>2</mn></msup><mi>dt</mi></mrow></msqrt></mrow></math> where T is the weld time, so depth grows until the end of the weld and finishes at the equation value for constant inputs (same idea as spot, where d² follows the heat put in).</p>
+          <ul class="remark"><li>Needs experimental calibration for a different material.</li><li>Joint: edge fillet on thin sheet. Required penetration 0.3 mm into the lower sheet.</li></ul>
+        </div>
+      </article>
+
+      <article class="eqcard laser" id="eq-laser" data-proc="laser" role="button" tabindex="0" aria-label="Laser welding equation. Select to simulate.">
+        <header><h3>Laser welding</h3><span class="chip">Semi-empirical energy balance</span></header>
+        <div class="eqbody">
+          <math display="block"><mrow><mi>d</mi><mo>=</mo><mn>0.10608</mn><mrow><mo>(</mo><mfrac><mi>P</mi><mrow><mi>K</mi><mo>·</mo><msub><mi>T</mi><mi>m</mi></msub></mrow></mfrac><mo>)</mo></mrow><msup><mrow><mo>(</mo><mfrac><mrow><mi>V</mi><mo>·</mo><mi>b</mi></mrow><mi>κ</mi></mfrac><mo>)</mo></mrow><mrow><mo>−</mo><mn>1.2056</mn></mrow></msup></mrow></math>
+        </div>
+        <div class="eqmore">
+          <dl class="where">
+            <dt>d</dt><dd>Penetration depth, m</dd>
+            <dt>P</dt><dd>Laser power, W</dd>
+            <dt>K</dt><dd>Thermal conductivity, W m⁻¹ K⁻¹</dd>
+            <dt>T<sub>m</sub></dt><dd>Melting temperature of alloy</dd>
+            <dt>V</dt><dd>Welding speed, m s⁻¹</dd>
+            <dt>b</dt><dd>Laser beam diameter, m</dd>
+            <dt>κ</dt><dd>Thermal diffusion, m² s⁻¹ (written K on the slide)</dd>
+          </dl>
+          <p class="io"><b>Input:</b> laser power and travel speed. <b>Output:</b> weld penetration (depth).</p>
+          <p class="io"><b>Growth in time:</b> <math><mrow><mi>D</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><msqrt><mrow><mfrac><mn>1</mn><mi>T</mi></mfrac><msubsup><mo>∫</mo><mn>0</mn><mi>t</mi></msubsup><msup><mi>d</mi><mn>2</mn></msup><mi>dt</mi></mrow></msqrt></mrow></math> where T is the weld time, so depth grows until the end of the weld and finishes at the equation value for constant inputs (same idea as spot, where d² follows the heat put in).</p>
+          <ul class="remark"><li>Needs experimental calibration for a different material. Here d is multiplied by a calibration factor C (steel 1.0, stainless 1.0, aluminium 0.25 for its high reflectivity).</li><li>Joint: edge fillet on thin sheet. Required penetration 0.3 mm.</li></ul>
+        </div>
+      </article>
+
+      <details class="notes">
+        <summary>About these models</summary>
+        <ul>
+          <li>These are teaching models built on the three equations above. Each run is evaluated at 400 points along its own time axis.</li>
+          <li>Spot: k is set so that 9.2 kA for 200 ms on 2 mm of mild steel gives the 5.0 mm standard nugget. R follows a dynamic-resistance curve that falls as the contact softens. Latent heat is ignored.</li>
+          <li>Edge fillet joint: the upper sheet (1.0 mm) edge sits on the lower sheet (1.2 mm). The weld is made in the corner, and penetration is measured from the sheet interface down into the lower sheet. The minimum required is 0.3 mm. Reaching the lower sheet thickness means burn-through.</li><li>Growth: the shown depth is the root-mean-square of the equation value accumulated over the weld time, a teaching assumption that makes depth grow until the end, like the spot nugget.</li><li>GMAW: K is an illustrative value for each wire diameter (thin-sheet range). It must be calibrated by experiment for a real material.</li>
+          <li>Laser: material properties are typical handbook values. The fitted equation is only reliable near the conditions it was fitted on, so very low speeds or soft materials can give unrealistic depths. A calibration factor C (aluminium 0.25) pulls the aluminium result back to a realistic range.</li>
+          <li>Time profiles (ramps, dips, speed variation) are examples that show how a changing input changes the output.</li>
+        </ul>
+        <table class="props">
+          <thead><tr><th>Material</th><th>ρ kg/m³</th><th>c J/kgK</th><th>T<sub>m</sub> K</th><th>K W/mK</th><th>κ m²/s</th></tr></thead>
+          <tbody id="proptable"></tbody>
+        </table>
+      </details>
+    </section>
+
+    <section class="col simcol" aria-label="Simulation">
+      <div class="panel main">
+        <div class="panel-h"><h2 id="simTitle">Spot welding</h2><span class="tag" id="simTag"></span></div>
+        <canvas class="scene" id="scene" role="img" aria-label="Cross-section of the weld as it forms"></canvas>
+        <dl class="readout" id="readout"></dl>
+        <div class="stat">
+          <div><span class="lbl" id="statLbl">Nugget diameter</span><span class="big"><b id="statVal">0.0</b> <span id="statUnit">mm</span></span></div>
+          <span class="badge" id="badge"></span>
+        </div>
+        <p class="msg" id="msg"></p>
+        <div class="ctrls" id="ctrls"></div>
+      </div>
+    </section>
+
+    <section class="col chartcol" aria-label="Charts against time">
+      <div class="panel">
+        <div class="panel-h"><h2>Inputs and result vs time</h2><span class="tag" id="chartTag"></span></div>
+        <canvas class="chart small" id="ch1" role="img"></canvas>
+        <canvas class="chart small" id="ch2" role="img"></canvas>
+        <canvas class="chart small" id="ch3" role="img"></canvas>
+        <canvas class="chart big" id="chOut" role="img"></canvas>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+'use strict';
+/* ---- Automotive welding math: three process models, one time axis each ----
+   Spot  : k I^2 R t = J_v V = c rho Tm V, V = pi d^2 L / 4        (energy balance)
+   GMAW  : P = K ( I^4 / (S V^2) )^0.333                            (empirical)
+   Laser : d = 0.10608 ( P / (K Tm) ) ( V b / kappa )^-1.2056       (semi-empirical)           */
+var N = 400;                      // samples per run
+var SEAM_MM = 100;                // GMAW and laser seam length used for the time axis
+
+var MAT = {
+  steel: { name: 'Mild steel',     rho: 7850, c: 490, Tm: 1773, K: 45,  Rf: 1.0,  Cc: 1.0 },
+  ss:    { name: 'Stainless 304',  rho: 7900, c: 500, Tm: 1723, K: 16,  Rf: 1.5,  Cc: 1.0 },
+  al:    { name: 'Aluminium 6061', rho: 2700, c: 900, Tm: 933,  K: 167, Rf: 0.25, Cc: 0.25 }
+};
+Object.keys(MAT).forEach(function (k) { var m = MAT[k]; m.kappa = m.K / (m.rho * m.c); m.Jv = m.c * m.rho * 1e-9 * m.Tm; });
+
+var WIRE = { '0.8': 0.062, '1.0': 0.055, '1.2': 0.049 };   // illustrative K for each wire diameter
+
+function smooth(u) { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); }
+function win(u, a, b, e) { return smooth((u - a) / e) * smooth((b - u) / e); }
+
+function profSpot(kind, u) {
+  if (kind === 'ramp') return Math.min(smooth(u / 0.25), smooth((1 - u) / 0.15));
+  if (kind === 'dip') return 1 - 0.3 * win(u, 0.4, 0.7, 0.05);
+  return 1;
+}
+
+function stats(out, target, spot) {
+  var n = out.length, i, mn = 1e9, mx = 0, sum = 0, ok = 0, mid = 1e9;
+  for (i = 0; i < n; i++) {
+    var v = out[i]; mn = Math.min(mn, v); mx = Math.max(mx, v); sum += v; if (v >= target) ok++;
+    if (i >= 0.1 * n && i <= 0.9 * n) mid = Math.min(mid, v);
+  }
+  var tReach = -1; for (i = 0; i < n; i++) if (out[i] >= target) { tReach = i / (n - 1); break; }
+  return { final: out[n - 1], min: mn, max: mx, mean: sum / n, pct: 100 * ok / n, midMin: mid, tReach: tReach,
+           pass: out[n - 1] >= target };
+}
+
+function simSpot(p) {
+  var m = MAT[p.mat], n = N, dt = p.tms / n, i, tau = 0, E = 0;
+  var o = { t: [], I: [], R: [], E: [], out: [], tEnd: p.tms };
+  for (i = 0; i <= n; i++) {
+    var u = i / n, I = p.I * profSpot(p.prof, u);
+    var R = m.Rf * (165 + 170 * Math.exp(-tau / 4) + 140 * Math.exp(-tau / 80));
+    if (i > 0) E += p.k * Math.pow(I * 1000, 2) * R * 1e-6 * dt * 1e-3;
+    var V = E / m.Jv, d = Math.sqrt(4 * V / (Math.PI * p.L));
+    o.t.push(i * dt); o.I.push(I); o.R.push(R); o.E.push(E); o.out.push(d);
+    tau += Math.pow(I / 10.19, 2) * dt;
+  }
+  o.target = 5 * Math.sqrt(p.L / 2);
+  o.st = stats(o.out, o.target, true);
+  return o;
+}
+
+function simGMAW(p) {
+  var n = N, tEnd = SEAM_MM / (p.S / 60), i, x = 0, cum = 0;
+  var o = { t: [], I: [], V: [], S: [], x: [], out: [], inst: [], tEnd: tEnd }, K = WIRE[p.wire];
+  for (i = 0; i <= n; i++) {
+    var u = i / n, fi = 1, fv = 1, fs = 1;
+    if (p.prof === 'ramp') {
+      fi = 1 - 0.55 * (1 - smooth(u / 0.12)) - 0.45 * smooth((u - 0.9) / 0.1);
+      fv = 1 - 0.15 * (1 - smooth(u / 0.12)) - 0.10 * smooth((u - 0.9) / 0.1);
+    } else if (p.prof === 'speed') fs = 1 + 0.35 * Math.sin(2 * Math.PI * 2.5 * u);
+    var I = p.I * fi, V = p.V * fv, S = p.S * fs;
+    if (i > 0) x += S / 60 * (tEnd / n);
+    o.t.push(u * tEnd); o.I.push(I); o.V.push(V); o.S.push(S); o.x.push(x);
+    var pi = K * Math.pow(Math.pow(I, 4) / (S * V * V), 1 / 3);
+    if (i > 0) cum += pi * pi / n;
+    o.inst.push(pi); o.out.push(Math.sqrt(cum));
+  }
+  o.K = K; o.target = p.target;
+  o.st = stats(o.out, o.target, false);
+  return o;
+}
+
+function simLaser(p) {
+  var m = MAT[p.mat], n = N, vms = p.Vm * 1000 / 60, tEnd = SEAM_MM / vms, i, cum = 0;
+  var o = { t: [], P: [], V: [], Pe: [], out: [], inst: [], tEnd: tEnd, Cc: m.Cc };
+  for (i = 0; i <= n; i++) {
+    var u = i / n, f = 1;
+    if (p.prof === 'ramp') f = 1 - 0.8 * (1 - smooth(u / 0.1)) - 0.5 * smooth((u - 0.9) / 0.1);
+    else if (p.prof === 'dip') f = 1 - 0.35 * win(u, 0.4, 0.65, 0.05);
+    var P = p.P * f, Vs = p.Vm / 60, Pe = Vs * (p.b / 1000) / m.kappa;
+    var d = 0.10608 * (P / (m.K * m.Tm)) * Math.pow(Pe, -1.2056) * 1000 * m.Cc;   // m to mm, times material calibration C
+    if (i > 0) cum += d * d / n;
+    o.t.push(u * tEnd); o.P.push(P); o.V.push(p.Vm); o.Pe.push(Pe); o.inst.push(d); o.out.push(Math.sqrt(cum));
+  }
+  o.target = p.target;
+  o.st = stats(o.out, o.target, false);
+  return o;
+}
+
+
+
+
+var $ = function (s) { return document.querySelector(s); };
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
+
+/* ---------- process definitions ---------- */
+var DEF = {
+  spot: {
+    title: 'Spot welding', tag: 'electrodes press two sheets and pass current', unit: 'mm', outName: 'Nugget diameter', outShort: 'd', t: 'ms', tdec: 0,
+    sliders: [
+      { k: 'I', label: 'Current I', unit: 'kA', min: 5, max: 13, step: 0.1, dec: 1 },
+      { k: 'tms', label: 'Weld time t', unit: 'ms', min: 100, max: 400, step: 10, dec: 0 },
+      { k: 'L', label: 'Thickness L', unit: 'mm', min: 1, max: 4, step: 0.1, dec: 1 },
+      { k: 'k', label: 'Heat factor k', unit: '', min: 0.02, max: 0.12, step: 0.001, dec: 3 }
+    ],
+    segs: [
+      { k: 'mat', label: 'Material', opts: [['steel', 'Mild steel'], ['ss', 'Stainless'], ['al', 'Aluminium']] },
+      { k: 'prof', label: 'Current profile', opts: [['const', 'Constant'], ['ramp', 'Up and down slope'], ['dip', 'Dip (shunt)']] }
+    ],
+    vals: { I: 9.2, tms: 200, L: 2, k: 0.07, mat: 'steel', prof: 'const' }
+  },
+  gmaw: {
+    title: 'GMAW', tag: 'arc melts the wire and the plate', unit: 'mm', outName: 'Penetration depth', outShort: 'P', t: 's', tdec: 1,
+    sliders: [
+      { k: 'I', label: 'Current I', unit: 'A', min: 60, max: 180, step: 5, dec: 0 },
+      { k: 'V', label: 'Arc voltage V', unit: 'V', min: 14, max: 24, step: 0.5, dec: 1 },
+      { k: 'S', label: 'Travel speed S', unit: 'mm/min', min: 300, max: 900, step: 10, dec: 0 },
+      { k: 'target', label: 'Required P', unit: 'mm', min: 0.1, max: 1, step: 0.05, dec: 2 }
+    ],
+    segs: [
+      { k: 'wire', label: 'Wire diameter', opts: [['0.8', 'Ø0.8 mm'], ['1.0', 'Ø1.0 mm'], ['1.2', 'Ø1.2 mm']] },
+      { k: 'prof', label: 'Weld profile', opts: [['const', 'Constant'], ['ramp', 'Arc start and crater'], ['speed', 'Speed variation']] }
+    ],
+    vals: { I: 110, V: 18, S: 600, target: 0.3, wire: '1.0', prof: 'const' }
+  },
+  laser: {
+    title: 'Laser welding', tag: 'a focused beam melts a narrow, deep zone', unit: 'mm', outName: 'Penetration depth', outShort: 'd', t: 's', tdec: 2,
+    sliders: [
+      { k: 'P', label: 'Laser power P', unit: 'W', min: 500, max: 4000, step: 50, dec: 0 },
+      { k: 'Vm', label: 'Speed V', unit: 'm/min', min: 1.5, max: 8, step: 0.1, dec: 1 },
+      { k: 'b', label: 'Beam Ø b', unit: 'mm', min: 0.3, max: 1, step: 0.05, dec: 2 },
+      { k: 'target', label: 'Required d', unit: 'mm', min: 0.1, max: 1, step: 0.05, dec: 2 }
+    ],
+    segs: [
+      { k: 'mat', label: 'Material', opts: [['steel', 'Mild steel'], ['ss', 'Stainless'], ['al', 'Aluminium']] },
+      { k: 'prof', label: 'Power profile', opts: [['const', 'Constant'], ['ramp', 'Power ramps'], ['dip', 'Power dip']] }
+    ],
+    vals: { P: 2000, Vm: 4, b: 0.6, target: 0.3, mat: 'steel', prof: 'const' }
+  }
+};
+
+var state = { proc: 'spot', u: 1, playing: false, dur: 8, dirty: true, phase: 0, v: {} };
+Object.keys(DEF).forEach(function (k) { state.v[k] = JSON.parse(JSON.stringify(DEF[k].vals)); });
+var S = null, C = null;
+
+function recompute() {
+  var v = state.v[state.proc];
+  S = state.proc === 'spot' ? simSpot(v) : state.proc === 'gmaw' ? simGMAW(v) : simLaser(v);
+}
+
+/* ---------- controls ---------- */
+function fmt(v, d) { return v.toFixed(d); }
+function buildControls() {
+  var D = DEF[state.proc], v = state.v[state.proc], h = '';
+  D.sliders.forEach(function (s) {
+    h += '<div class="ctrl"><label class="nm" for="c-' + s.k + '">' + s.label + '</label>' +
+      '<input type="range" id="c-' + s.k + '" data-k="' + s.k + '" min="' + s.min + '" max="' + s.max + '" step="' + s.step + '" value="' + v[s.k] + '">' +
+      '<output class="tval" id="o-' + s.k + '" for="c-' + s.k + '">' + fmt(v[s.k], s.dec) + ' ' + s.unit + '</output></div>';
+  });
+  D.segs.forEach(function (g) {
+    h += '<div class="segrow"><span class="lab">' + g.label + '</span>';
+    g.opts.forEach(function (o) {
+      var id = 'sg-' + g.k + '-' + o[0];
+      h += '<span class="seg"><input type="radio" name="sg-' + g.k + '" id="' + id + '" data-k="' + g.k + '" value="' + o[0] + '"' + (String(v[g.k]) === o[0] ? ' checked' : '') + '><label for="' + id + '">' + o[1] + '</label></span>';
+    });
+    h += '</div>';
+  });
+  $('#ctrls').innerHTML = h;
+}
+$('#ctrls').addEventListener('input', function (e) {
+  var el = e.target, k = el.getAttribute('data-k'); if (!k) return;
+  var v = state.v[state.proc];
+  if (el.type === 'range') {
+    v[k] = parseFloat(el.value);
+    var s = DEF[state.proc].sliders.filter(function (q) { return q.k === k; })[0];
+    $('#o-' + k).textContent = fmt(v[k], s.dec) + ' ' + s.unit;
+  }
+});
+$('#ctrls').addEventListener('change', function (e) {
+  var el = e.target, k = el.getAttribute('data-k'); if (!k) return;
+  if (el.type === 'radio') state.v[state.proc][k] = el.value;
+  refresh();
+});
+$('#ctrls').addEventListener('input', function () { refresh(); });
+
+function refresh() { recompute(); state.dirty = true; }
+
+function selectProc(p) {
+  state.proc = p; state.u = 1; state.playing = false;
+  document.querySelectorAll('.eqcard').forEach(function (c) { c.classList.toggle('sel', c.getAttribute('data-proc') === p); });
+  $('#pr-' + p).checked = true;
+  $('#app').style.setProperty('--pc', 'var(--c-' + p + ')');
+  buildControls(); recompute(); updatePlayBtn(); state.dirty = true;
+}
+Array.prototype.forEach.call(document.querySelectorAll('input[name=proc]'), function (el) { el.addEventListener('change', function () { selectProc(el.value); }); });
+Array.prototype.forEach.call(document.querySelectorAll('.eqcard'), function (c) {
+  c.addEventListener('click', function () { selectProc(c.getAttribute('data-proc')); });
+  c.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectProc(c.getAttribute('data-proc')); } });
+});
+
+/* ---------- canvas helpers ---------- */
+function readColors() {
+  var cs = getComputedStyle(document.documentElement), g = function (n) { return cs.getPropertyValue(n).trim(); };
+  C = { ink: g('--ink'), ink2: g('--ink2'), line: g('--line'), grid: g('--grid'), plot: g('--plot'), cell: g('--cellbg'),
+    spot: g('--c-spot'), gmaw: g('--c-gmaw'), laser: g('--c-laser'),
+    i: g('--sig-i'), v: g('--sig-v'), s: g('--sig-s'), r: g('--sig-r'), p: g('--sig-p'), good: g('--good'), bad: g('--bad'),
+    sheet: g('--sheet'), sheet2: g('--sheet2'), edge: g('--sheet-edge'), cu1: g('--cu1'), cu2: g('--cu2'), cu3: g('--cu3'),
+    w1: g('--weld1'), w2: g('--weld2') };
+}
+function prep(cv) {
+  var r = cv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx: ctx, W: r.width, H: r.height };
+}
+function arrow(ctx, x1, y1, x2, y2, col) {
+  var a = Math.atan2(y2 - y1, x2 - x1), h = 7;
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  [[x2, y2, a], [x1, y1, a + Math.PI]].forEach(function (q) {
+    ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(q[0] - h * Math.cos(q[2] - 0.4), q[1] - h * Math.sin(q[2] - 0.4)); ctx.lineTo(q[0] - h * Math.cos(q[2] + 0.4), q[1] - h * Math.sin(q[2] + 0.4)); ctx.closePath(); ctx.fill();
+  });
+}
+function label(ctx, txt, x, y, align, col, size) {
+  ctx.font = '500 ' + (size || 12) + 'px ' + MONO; ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = col || C.ink; ctx.fillText(txt, x, y);
+}
+function hash(n) { var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+
+/* ---------- spot welding close-up ---------- */
+function sceneSpot(ctx, W, H, idx) {
+  var pp = state.v.spot, L = pp.L, d = S.out[idx], I = S.I[idx];
+  var s = Math.min(W / 20, (H - 34) / (L + 13)), cx = W / 2, yM = H / 2 + 6, yT = yM - L * s / 2, yB = yM + L * s / 2;
+  var Emax = Math.max(S.E[S.E.length - 1], 1e-6), frac = clamp(S.E[idx] / Emax, 0, 1);
+  ctx.fillStyle = C.cell; ctx.fillRect(0, 0, W, H);
+
+  // heat halo like the slide's temperature map
+  var r = (d / 2 + 1.4 + 3 * frac) * s;
+  var hg = ctx.createRadialGradient(cx, yM, 0, cx, yM, r);
+  hg.addColorStop(0, 'rgba(255,60,30,0.95)'); hg.addColorStop(0.3, 'rgba(255,200,40,0.85)'); hg.addColorStop(0.55, 'rgba(70,200,90,0.6)'); hg.addColorStop(0.8, 'rgba(40,170,230,0.4)'); hg.addColorStop(1, 'rgba(30,70,210,0)');
+  // sheets
+  ctx.fillStyle = C.sheet; ctx.fillRect(0, yT, W, L * s / 2); ctx.fillStyle = C.sheet2; ctx.fillRect(0, yM, W, L * s / 2);
+  ctx.strokeStyle = C.edge; ctx.lineWidth = 1.2; ctx.strokeRect(-2, yT, W + 4, L * s);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, yT, W, L * s); ctx.clip();
+  ctx.globalAlpha = 0.9 * clamp(0.25 + frac, 0, 1); ctx.fillStyle = hg; ctx.fillRect(cx - r, yM - r, 2 * r, 2 * r); ctx.globalAlpha = 1; ctx.restore();
+  ctx.setLineDash([5, 4]); ctx.lineWidth = 1; ctx.strokeStyle = C.edge; ctx.beginPath(); ctx.moveTo(0, yM); ctx.lineTo(W, yM); ctx.stroke(); ctx.setLineDash([]);
+
+  // nugget
+  if (d > 0.05) {
+    var nw = d * s, nh = Math.min(L * s * 0.92, Math.max(nw, 6)), rad = Math.min(nw, nh) / 2;
+    ctx.beginPath(); ctx.moveTo(cx - nw / 2 + rad, yM - nh / 2); ctx.lineTo(cx + nw / 2 - rad, yM - nh / 2); ctx.arc(cx + nw / 2 - rad, yM, nh / 2, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(cx - nw / 2 + rad, yM + nh / 2); ctx.arc(cx - nw / 2 + rad, yM, nh / 2, Math.PI / 2, 3 * Math.PI / 2); ctx.closePath();
+    var ng = ctx.createRadialGradient(cx, yM, 0, cx, yM, nw / 2); ng.addColorStop(0, C.w1); ng.addColorStop(1, C.w2);
+    ctx.fillStyle = ng; ctx.fill(); ctx.strokeStyle = 'rgba(110,40,0,0.75)'; ctx.lineWidth = 1.3; ctx.stroke();
+  }
+  // electrodes (tip diameter 8 mm)
+  function electrode(dir) {
+    var y0 = dir < 0 ? yT : yB, tip = 4 * s, body = 6 * s, cone = 3 * s, len = 6.6 * s;
+    var yC = y0 + dir * cone, yE = y0 + dir * len;
+    ctx.beginPath(); ctx.moveTo(cx - tip, y0); ctx.lineTo(cx + tip, y0); ctx.lineTo(cx + body, yC); ctx.lineTo(cx + body, yE); ctx.lineTo(cx - body, yE); ctx.lineTo(cx - body, yC); ctx.closePath();
+    var g = ctx.createLinearGradient(cx - body, 0, cx + body, 0); g.addColorStop(0, C.cu3); g.addColorStop(0.35, C.cu1); g.addColorStop(0.65, C.cu2); g.addColorStop(1, C.cu3);
+    ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = C.cu3; ctx.lineWidth = 1.2; ctx.stroke();
+  }
+  electrode(-1); electrode(1);
+  // current flow
+  if (I > 0.2) {
+    ctx.save(); ctx.setLineDash([8, 8]); ctx.lineDashOffset = -state.phase; ctx.lineCap = 'round';
+    ctx.strokeStyle = C.i; ctx.globalAlpha = 0.5 + 0.45 * clamp(I / 13, 0, 1); ctx.lineWidth = 1.2 + 1.8 * clamp(I / 13, 0, 1);
+    for (var k = -3; k <= 3; k++) {
+      ctx.beginPath(); ctx.moveTo(cx + k * 0.8 * s, yT - 6.2 * s); ctx.lineTo(cx + k * 0.8 * s, yT - 3 * s); ctx.lineTo(cx + k * 0.5 * s, yT); ctx.lineTo(cx + k * 0.6 * s, yB); ctx.lineTo(cx + k * 0.8 * s, yB + 3 * s); ctx.lineTo(cx + k * 0.8 * s, yB + 6.2 * s); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // dimensions as on the slide
+  if (d > 0.05) { arrow(ctx, cx - d * s / 2, yM, cx + d * s / 2, yM, '#1a1a1a'); }
+  label(ctx, 'd = ' + d.toFixed(2) + ' mm', cx + 6.6 * s, yM, 'left', C.ink, 13);
+  var bx = cx - 6.6 * s; arrow(ctx, bx, yT, bx, yB, C.ink); label(ctx, 'L = ' + L.toFixed(1) + ' mm', bx - 6, yM, 'right', C.ink, 13);
+  var std = S.target / 2 * s; ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.7; ctx.lineWidth = 1;
+  [-std, std].forEach(function (o) { ctx.beginPath(); ctx.moveTo(cx + o, yT + 2); ctx.lineTo(cx + o, yB - 2); ctx.stroke(); }); ctx.restore();
+  label(ctx, 'dashed: standard Ø' + S.target.toFixed(1) + ' mm', W - 8, 14, 'right', C.ink2, 11);
+  label(ctx, 'electrode tip Ø8 mm', 8, 14, 'left', C.ink2, 11);
+}
+
+/* ---------- GMAW cross-section ---------- */
+/* ---------- edge fillet joint (GMAW and laser) ---------- */
+function sceneFillet(ctx, W, H, idx, kind) {
+  var pp = state.v[kind], P = S.out[idx], tu = 1.0, tl = 1.2, gm = kind === 'gmaw';
+  var s = Math.min(W / 6.5, (H - 170) / (tl + 0.6)), cx = W * 0.4, yi = H - 14 - tl * s;
+  var Pd = Math.min(P, tl);
+  var half = function (p) { return gm ? 0.8 + 1.2 * p : 0.15 + 0.3 * pp.b + 0.25 * p; };
+  var leg = function (p) { return gm ? 0.8 + 0.6 * p : 0.3 + 0.3 * p; };
+  ctx.fillStyle = C.cell; ctx.fillRect(0, 0, W, H);
+  // sheets
+  ctx.fillStyle = C.sheet; ctx.fillRect(0, yi, W, tl * s);
+  ctx.fillStyle = C.sheet2; ctx.fillRect(0, yi - tu * s, cx, tu * s);
+  ctx.strokeStyle = C.edge; ctx.lineWidth = 1.2; ctx.strokeRect(-2, yi, W + 4, tl * s); ctx.strokeRect(-2, yi - tu * s, cx + 2, tu * s);
+  label(ctx, 'Upper sheet ' + tu.toFixed(1) + ' mm', 8, yi - tu * s / 2 + 4, 'left', C.ink, 12);
+  label(ctx, 'Lower sheet ' + tl.toFixed(1) + ' mm', 8, yi + tl * s - 10, 'left', C.ink, 12);
+  var ell = function (p) { ctx.beginPath(); ctx.ellipse(cx, yi, half(p) * s, Math.max(p, 0.02) * s, 0, 0, Math.PI * 2); };
+  var bead = function (p) { var L = leg(p) * s, h = Math.min(L, tu * s * 0.95); ctx.beginPath(); ctx.moveTo(cx, yi - h); ctx.quadraticCurveTo(cx + L * 0.25, yi - h * 0.25, cx + L, yi); ctx.lineTo(cx, yi); ctx.closePath(); };
+  var j, step = Math.max(1, Math.round(S.out.length / 30));
+  // earlier fusion boundaries (faint)
+  ctx.save(); ctx.beginPath(); ctx.rect(0, yi, W, tl * s); ctx.clip(); ctx.strokeStyle = C.ink; ctx.lineWidth = 1;
+  for (j = 0; j < idx; j += step) { ctx.globalAlpha = 0.2; ell(Math.min(S.out[j], tl)); ctx.stroke(); }
+  ctx.restore();
+  // heat affected zone
+  ctx.save(); ctx.beginPath(); ctx.rect(0, yi, W, tl * s); ctx.clip(); ctx.beginPath(); ctx.ellipse(cx, yi, (half(Pd) + 0.7) * s, (Pd + 0.5) * s, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,170,60,0.25)'; ctx.fill(); ctx.restore();
+  // fusion zone
+  var g = ctx.createLinearGradient(0, yi - 1.5 * s, 0, yi + Math.max(Pd, 0.3) * s); g.addColorStop(0, C.w1); g.addColorStop(1, C.w2);
+  ctx.fillStyle = g; ctx.strokeStyle = 'rgba(110,40,0,0.85)'; ctx.lineWidth = 1.5;
+  ctx.save(); ctx.beginPath(); ctx.rect(0, yi, W, tl * s); ctx.clip(); ell(Pd); ctx.fill(); ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.rect(0, yi - tu * s, cx, tu * s); ctx.clip(); ell(Pd); ctx.fill(); ctx.restore();
+  bead(P); ctx.fill(); ctx.stroke();
+  // required depth and depth dimension
+  var ty = yi + Math.min(pp.target, tl) * s, ax = cx - Math.max(half(Pd), 1) * s - 0.5 * s;
+  ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(ax + 4, ty); ctx.lineTo(cx + 2.6 * s, ty); ctx.stroke(); ctx.restore();
+  label(ctx, 'required ' + pp.target.toFixed(2) + ' mm', cx + 2.7 * s, ty + 4, 'left', C.ink2, 11); arrow(ctx, ax, yi, ax, yi + Pd * s, C.ink);
+  label(ctx, (gm ? 'P' : 'd') + ' = ' + P.toFixed(2) + ' mm', Math.max(8, ax - 40), Math.max(yi + Pd * s, ty) + 20, 'left', C.ink, 13);
+  ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = C.ink2; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ax - 8, yi); ctx.lineTo(cx + 0.6 * s, yi); ctx.stroke(); ctx.restore();
+  label(ctx, 'interface', cx + leg(P) * s + 8, yi - 4, 'left', C.ink2, 10);
+  if (P >= tl) label(ctx, 'burn-through', W - 8, 34, 'right', C.bad, 12);
+  // torch or beam, 45 degrees from the upper right, aimed at the corner
+  var ax0 = cx + 0.25 * s, ay0 = yi - 0.25 * s;
+  ctx.save(); ctx.translate(ax0, ay0); ctx.rotate(-Math.PI / 4);
+  if (gm) {
+    var fl = 0.85 + 0.15 * hash(Math.floor(state.phase * 0.3)), ar = (14 + 34 * clamp(S.I[idx] / 180, 0, 1.2)) * fl, tip = 42;
+    ctx.beginPath(); ctx.moveTo(tip + 40, -26); ctx.lineTo(tip + 300, -34); ctx.lineTo(tip + 300, 34); ctx.lineTo(tip + 40, 26); ctx.closePath();
+    ctx.fillStyle = C.edge; ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = C.ink2; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(tip + 40, 0); ctx.lineTo(0, 0); ctx.stroke();
+    var ag = ctx.createRadialGradient(0, 0, 0, 0, 0, ar); ag.addColorStop(0, 'rgba(255,255,255,1)'); ag.addColorStop(0.3, 'rgba(170,205,255,0.9)'); ag.addColorStop(1, 'rgba(90,140,255,0)');
+    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, 0, ar, 0, Math.PI * 2); ctx.fill();
+  } else {
+    var lf = 0.9 + 0.1 * hash(Math.floor(state.phase * 0.4)), bw = Math.max(0.5 * pp.b * s, 3);
+    var bg = ctx.createLinearGradient(420, 0, 0, 0); bg.addColorStop(0, 'rgba(197,155,255,0.12)'); bg.addColorStop(1, 'rgba(197,155,255,' + (0.8 * lf).toFixed(2) + ')');
+    ctx.beginPath(); ctx.moveTo(420, -34); ctx.lineTo(420, 34); ctx.lineTo(0, bw); ctx.lineTo(0, -bw); ctx.closePath(); ctx.fillStyle = bg; ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = 0.85; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(400, 0); ctx.lineTo(0, 0); ctx.stroke(); ctx.globalAlpha = 1;
+    var pg = ctx.createRadialGradient(0, 0, 0, 0, 0, 24); pg.addColorStop(0, 'rgba(255,255,255,0.95)'); pg.addColorStop(0.4, 'rgba(220,180,255,0.6)'); pg.addColorStop(1, 'rgba(180,120,255,0)');
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  // travel direction (into the page)
+  var tx = 30, ty2 = 52; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(tx, ty2, 11, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(tx, ty2, 3, 0, Math.PI * 2); ctx.fill();
+  label(ctx, gm ? 'torch travels into the page' : 'beam travels into the page', tx + 18, ty2 + 4, 'left', C.ink2, 11);
+  label(ctx, gm ? 'S = ' + S.S[idx].toFixed(0) + ' mm/min' : 'V = ' + S.V[idx].toFixed(1) + ' m/min', tx + 18, ty2 + 20, 'left', C.ink, 12);
+  label(ctx, 'edge fillet weld on a lap joint, cross-section', 8, 14, 'left', C.ink2, 11);
+}
+function sceneGMAW(ctx, W, H, idx) { sceneFillet(ctx, W, H, idx, 'gmaw'); }
+function sceneLaser(ctx, W, H, idx) { sceneFillet(ctx, W, H, idx, 'laser'); }
+
+/* ---------- charts ---------- */
+function niceMax(v) { if (v <= 0) return 1; var e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e, st = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10], i; for (i = 0; i < st.length; i++) if (f <= st[i] + 1e-9) return st[i] * e; return 10 * e; }
+function tickFmt(v, span) { return span >= 20 ? v.toFixed(0) : span >= 2 ? v.toFixed(1) : v.toFixed(2); }
+function drawChart(cv, o) {
+  var p = prep(cv), ctx = p.ctx, W = p.W, H = p.H;
+  ctx.clearRect(0, 0, W, H);
+  var m = { l: 46, r: 14, t: 16, b: o.xlab ? 30 : 8 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+  var X = function (t) { return m.l + t / o.xmax * pw; }, Y = function (v) { return m.t + ph * (1 - (v - o.ymin) / (o.ymax - o.ymin)); };
+  ctx.fillStyle = C.plot; ctx.fillRect(m.l, m.t, pw, ph);
+  var k, span = o.ymax - o.ymin;
+  ctx.font = '400 11px ' + MONO; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+  for (k = 0; k <= 2; k++) {
+    var val = o.ymin + span * k / 2, yy = Math.round(Y(val)) + 0.5;
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(m.l, yy); ctx.lineTo(m.l + pw, yy); ctx.stroke();
+    ctx.fillStyle = C.ink2; ctx.fillText(tickFmt(val, span), m.l - 6, yy);
+  }
+  for (k = 0; k <= 5; k++) { var xx = Math.round(X(o.xmax * k / 5)) + 0.5; ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(xx, m.t); ctx.lineTo(xx, m.t + ph); ctx.stroke(); }
+  ctx.strokeStyle = C.line; ctx.strokeRect(m.l + 0.5, m.t + 0.5, pw, ph);
+  if (o.xlab) {
+    ctx.fillStyle = C.ink2; ctx.textAlign = 'center';
+    for (k = 0; k <= 5; k++) ctx.fillText((o.xmax * k / 5).toFixed(o.xdec), X(o.xmax * k / 5), m.t + ph + 13);
+    ctx.fillText(o.xlab, m.l + pw / 2, m.t + ph + 25);
+  }
+  ctx.textAlign = 'left'; ctx.fillStyle = o.color; ctx.font = '500 12px ' + MONO; ctx.fillText(o.title, m.l + 2, 8);
+  if (o.derived) { ctx.fillStyle = C.ink2; ctx.textAlign = 'right'; ctx.font = '400 11px ' + MONO; ctx.fillText('derived', m.l + pw, 8); }
+
+  ctx.save(); ctx.beginPath(); ctx.rect(m.l, m.t, pw, ph); ctx.clip();
+  var n = o.y.length, i;
+  if (o.fill) {
+    ctx.beginPath(); ctx.moveTo(X(o.x[0]), Y(o.ymin)); for (i = 0; i <= o.idx; i++) ctx.lineTo(X(o.x[i]), Y(o.y[i])); ctx.lineTo(X(o.x[o.idx]), Y(o.ymin)); ctx.closePath();
+    ctx.fillStyle = o.color; ctx.globalAlpha = 0.12; ctx.fill(); ctx.globalAlpha = 1;
+  }
+  ctx.beginPath(); for (i = 0; i < n; i++) { var px = X(o.x[i]), py = Y(o.y[i]); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+  ctx.strokeStyle = C.ink2; ctx.globalAlpha = 0.25; ctx.lineWidth = 1.4; ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.lineWidth = o.big ? 2.4 : 1.9; ctx.lineJoin = 'round';
+  if (o.split) {
+    var run = o.y[0] >= o.target; ctx.beginPath(); ctx.moveTo(X(o.x[0]), Y(o.y[0]));
+    for (i = 1; i <= o.idx; i++) { ctx.lineTo(X(o.x[i]), Y(o.y[i])); var ok = o.y[i] >= o.target; if (ok !== run) { ctx.strokeStyle = run ? C.good : C.bad; ctx.stroke(); run = ok; ctx.beginPath(); ctx.moveTo(X(o.x[i]), Y(o.y[i])); } }
+    ctx.strokeStyle = run ? C.good : C.bad; ctx.stroke();
+  } else { ctx.beginPath(); for (i = 0; i <= o.idx; i++) { var qx = X(o.x[i]), qy = Y(o.y[i]); if (i === 0) ctx.moveTo(qx, qy); else ctx.lineTo(qx, qy); } ctx.strokeStyle = o.color; ctx.stroke(); }
+  if (o.target !== undefined) {
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(m.l, Y(o.target)); ctx.lineTo(m.l + pw, Y(o.target)); ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.restore();
+  if (o.target !== undefined) { ctx.fillStyle = C.ink; ctx.font = '500 11px ' + MONO; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(o.tlabel, m.l + pw - 4, Y(o.target) - 4); }
+  var hx = X(o.x[o.idx]);
+  ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(hx, m.t); ctx.lineTo(hx, m.t + ph); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.arc(hx, clamp(Y(o.y[o.idx]), m.t, m.t + ph), 3.8, 0, Math.PI * 2);
+  ctx.fillStyle = o.split ? (o.y[o.idx] >= o.target ? C.good : C.bad) : o.color; ctx.fill();
+}
+
+function span(arr, zero) { var lo = Math.min.apply(null, arr), hi = Math.max.apply(null, arr); return zero ? [0, niceMax(hi * 1.12)] : [Math.max(0, Math.floor(lo * 0.8 / 5) * 5), Math.ceil(hi * 1.1 / 5) * 5]; }
+
+function charts(idx) {
+  var D = DEF[state.proc], v = state.v[state.proc], x = S.t, xmax = S.tEnd, xl = 'time (' + D.t + ')', xd = D.tdec, c, r;
+  var specs;
+  if (state.proc === 'spot') {
+    specs = [
+      { y: S.I, title: 'Current I (kA)', color: C.i, zero: true },
+      { y: S.R, title: 'Dynamic resistance R (µΩ)', color: C.r, zero: true },
+      { y: S.E, title: 'Heat into the nugget k∫I²R dt (J)', color: C.p, zero: true, derived: true }
+    ];
+  } else if (state.proc === 'gmaw') {
+    specs = [
+      { y: S.I, title: 'Current I (A)', color: C.i, zero: true },
+      { y: S.V, title: 'Arc voltage V (V)', color: C.v, zero: false },
+      { y: S.S, title: 'Travel speed S (mm/min)', color: C.s, zero: true }
+    ];
+  } else {
+    specs = [
+      { y: S.P, title: 'Laser power P (W)', color: C.p, zero: true },
+      { y: S.V, title: 'Travel speed V (m/min)', color: C.s, zero: true },
+      { y: S.Pe, title: 'Péclet number V·b/κ', color: C.v, zero: true, derived: true }
+    ];
+  }
+  specs.forEach(function (sp, i) {
+    r = span(sp.y, sp.zero);
+    drawChart($('#ch' + (i + 1)), { x: x, y: sp.y, xmax: xmax, xdec: xd, ymin: r[0], ymax: r[1], color: sp.color, title: sp.title, derived: sp.derived, idx: idx, xlab: null });
+  });
+  var tmax = Math.max(S.st.max, S.target) * 1.15;
+  drawChart($('#chOut'), { x: x, y: S.out, xmax: xmax, xdec: xd, ymin: 0, ymax: niceMax(tmax), color: C[state.proc], title: D.outName + ' ' + D.outShort + ' (mm)', idx: idx, xlab: xl, fill: true, big: true, split: true,
+    target: S.target, tlabel: (state.proc === 'spot' ? 'standard 5√t = ' : 'required ') + S.target.toFixed(state.proc === 'spot' ? 1 : 2) + ' mm' });
+}
+
+/* ---------- readout and text ---------- */
+function updateText(idx) {
+  var D = DEF[state.proc], rd, d = S.out[idx], st = S.st;
+  var tt = S.t[idx].toFixed(D.tdec);
+  if (state.proc === 'spot') rd = [['t (ms)', tt], ['I (kA)', S.I[idx].toFixed(2)], ['R (µΩ)', S.R[idx].toFixed(0)], ['Q melt (J)', S.E[idx].toFixed(0)], ['d (mm)', d.toFixed(2), 1]];
+  else if (state.proc === 'gmaw') rd = [['t (s)', tt], ['I (A)', S.I[idx].toFixed(0)], ['V (V)', S.V[idx].toFixed(1)], ['S (mm/min)', S.S[idx].toFixed(0)], ['P (mm)', d.toFixed(2), 1]];
+  else rd = [['t (s)', tt], ['P (W)', S.P[idx].toFixed(0)], ['V (m/min)', S.V[idx].toFixed(1)], ['Pe (–)', S.Pe[idx].toFixed(2)], ['d (mm)', d.toFixed(2), 1]];
+  $('#readout').innerHTML = rd.map(function (r) { return '<div' + (r[2] ? ' class="hl"' : '') + '><dt>' + r[0] + '</dt><dd>' + r[1] + '</dd></div>'; }).join('');
+  $('#statLbl').textContent = D.outName + ' now';
+  $('#statVal').textContent = d.toFixed(2); $('#statUnit').textContent = 'mm';
+  var b = $('#badge'), ok = st.pass;
+  if (state.proc === 'spot') { b.textContent = 'Final ' + st.final.toFixed(2) + ' mm · ' + (ok ? 'Meets standard' : 'Below standard'); }
+  else { b.textContent = 'Final ' + st.final.toFixed(2) + ' mm · ' + (ok ? 'Meets required' : 'Below required'); }
+  b.className = 'badge ' + (ok ? 'ok' : 'bad');
+  var msg;
+  if (state.proc === 'spot') {
+    msg = 'Standard nugget 5√t = ' + S.target.toFixed(1) + ' mm. ' + (st.tReach >= 0 ? 'Reached after ' + (st.tReach * S.tEnd).toFixed(0) + ' ms. ' : 'Not reached in this weld time. ') + 'Final ' + st.final.toFixed(2) + ' mm.';
+  } else {
+    msg = 'Required ' + S.target.toFixed(2) + ' mm. ' + (st.tReach >= 0 ? 'Reached after ' + (st.tReach * S.tEnd).toFixed(2) + ' s. ' : 'Not reached in this weld time. ') + 'Final ' + st.final.toFixed(2) + ' mm' + (state.proc === 'laser' ? ' (C = ' + S.Cc + ').' : '.');
+  }
+  $('#msg').textContent = msg;
+  $('#simTitle').textContent = D.title; $('#simTag').textContent = D.tag;
+  $('#chartTag').textContent = 'weld time ' + (state.proc === 'spot' ? S.tEnd.toFixed(0) + ' ms' : S.tEnd.toFixed(1) + ' s');
+  $('#tlabel').textContent = tt + ' ' + D.t;
+  var sc = $('#scrub'), uv = Math.round(state.u * 1000); if (+sc.value !== uv) sc.value = uv;
+}
+
+function updatePlayBtn() {
+  var a = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1 L13 7 L2 13 Z"/></svg>', b = '<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>';
+  $('#play').innerHTML = state.playing ? b + 'Pause' : a + (state.u >= 1 ? 'Replay' : 'Play');
+}
+
+function render() {
+  if (!C) readColors();
+  var idx = clamp(Math.round(state.u * (S.out.length - 1)), 0, S.out.length - 1);
+  var p = prep($('#scene'));
+  if (state.proc === 'spot') sceneSpot(p.ctx, p.W, p.H, idx); else if (state.proc === 'gmaw') sceneGMAW(p.ctx, p.W, p.H, idx); else sceneLaser(p.ctx, p.W, p.H, idx);
+  charts(idx); updateText(idx);
+}
+
+var lastTs = performance.now();
+function frame(now) {
+  var dt = Math.min(0.1, (now - lastTs) / 1000); lastTs = now;
+  if (state.playing) {
+    state.u += dt / state.dur;
+    if (!reduceMotion) state.phase += dt * 40;
+    if (state.u >= 1) { state.u = 1; state.playing = false; updatePlayBtn(); }
+    state.dirty = true;
+  }
+  if (state.dirty) { state.dirty = false; render(); }
+  requestAnimationFrame(frame);
+}
+
+$('#play').addEventListener('click', function () { if (state.playing) state.playing = false; else { if (state.u >= 1) state.u = 0; state.playing = true; } updatePlayBtn(); state.dirty = true; });
+$('#restart').addEventListener('click', function () { state.u = 0; state.playing = true; updatePlayBtn(); state.dirty = true; });
+$('#scrub').addEventListener('input', function (e) { state.u = parseFloat(e.target.value) / 1000; state.playing = false; updatePlayBtn(); state.dirty = true; });
+Array.prototype.forEach.call(document.querySelectorAll('input[name=speed]'), function (el) { el.addEventListener('change', function () { state.dur = parseFloat(el.value); }); });
+window.addEventListener('resize', function () { state.dirty = true; });
+if (window.ResizeObserver) new ResizeObserver(function () { state.dirty = true; }).observe($('#app'));
+function themeChanged() { C = null; state.dirty = true; }
+if (window.matchMedia) { var mq = window.matchMedia('(prefers-color-scheme: dark)'); if (mq.addEventListener) mq.addEventListener('change', themeChanged); }
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { state.dirty = true; });
+
+$('#proptable').innerHTML = Object.keys(MAT).map(function (k) { var m = MAT[k]; return '<tr><td>' + m.name + '</td><td>' + m.rho + '</td><td>' + m.c + '</td><td>' + m.Tm + '</td><td>' + m.K + '</td><td>' + m.kappa.toExponential(2) + '</td></tr>'; }).join('');
+
+selectProc('spot');
+requestAnimationFrame(frame);
+})();
+</script>
+
+
+</body></html>

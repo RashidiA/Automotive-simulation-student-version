@@ -1,0 +1,949 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Laser Seam Tracking Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout concept: same one-screen instrument panel as the spot-welding simulator. Two matched weld rigs (tracking OFF | ON) on the left, the five-step vision pipeline and results on the right. Stage 4 purple accent over cool navy neutrals. */
+:root {
+  --bg: #eeecf3;
+  --panel: #f8f7fb;
+  --panel2: #e8e2f1;
+  --ink: #12263f;
+  --ink2: #4a5a70;
+  --line: #cdc6d9;
+  --grid: #e0dbe8;
+  --plot: #fcfbfd;
+  --metal: #c7cfd9;
+  --pback: #a9b5c3;
+  --pfront: #d4dbe4;
+  --pshadow: rgba(10, 20, 40, 0.38);
+  --accent: #6b3fa0;
+  --accent-ink: #ffffff;
+  --seam: #26364b;
+  --band: rgba(107, 63, 160, 0.20);
+  --taught: #6b3fa0;
+  --trk-good: #179452;
+  --trk-bad: #d9372b;
+  --laser: #ff3d6e;
+  --good: #17703f;
+  --good-bg: #dcefe3;
+  --bad: #a8261d;
+  --bad-bg: #f6dedb;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d121b;
+    --panel: #151b27;
+    --panel2: #1f2735;
+    --ink: #e8edf5;
+    --ink2: #a0aec2;
+    --line: #2b3546;
+    --grid: #202a39;
+    --plot: #101620;
+    --metal: #3a4658;
+    --pback: #2a3342;
+    --pfront: #48546b;
+    --pshadow: rgba(0, 0, 0, 0.55);
+    --accent: #b48cf0;
+    --accent-ink: #160a29;
+    --seam: #0c1018;
+    --band: rgba(180, 140, 240, 0.28);
+    --taught: #b48cf0;
+    --trk-good: #4fd18a;
+    --trk-bad: #ff6b5e;
+    --laser: #ff5c85;
+    --good: #7fdca2;
+    --good-bg: #17382a;
+    --bad: #ff9a90;
+    --bad-bg: #44201d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d121b;
+  --panel: #151b27;
+  --panel2: #1f2735;
+  --ink: #e8edf5;
+  --ink2: #a0aec2;
+  --line: #2b3546;
+  --grid: #202a39;
+  --plot: #101620;
+  --metal: #3a4658;
+    --pback: #2a3342;
+    --pfront: #48546b;
+    --pshadow: rgba(0, 0, 0, 0.55);
+  --accent: #b48cf0;
+  --accent-ink: #160a29;
+  --seam: #0c1018;
+  --band: rgba(180, 140, 240, 0.28);
+  --taught: #b48cf0;
+  --trk-good: #4fd18a;
+  --trk-bad: #ff6b5e;
+  --laser: #ff5c85;
+  --good: #7fdca2;
+  --good-bg: #17382a;
+  --bad: #ff9a90;
+  --bad-bg: #44201d;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3, p { margin: 0; }
+.app { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.top, .infobar, .stage, .side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.top { gap: 14px; }
+.infobar { gap: 10px; }
+
+.titleblk { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow {
+  align-self: flex-start;
+  background: var(--accent); color: var(--accent-ink);
+  font-weight: 600; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 4px 12px; border-radius: 999px;
+}
+h1 {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(36px, 7vw, 60px); line-height: 1; letter-spacing: -0.005em; text-wrap: balance;
+}
+.lede { color: var(--ink2); max-width: 64ch; font-size: 17px; }
+
+/* controls */
+.controls {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px; display: grid; gap: 16px 28px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+.grp { display: flex; flex-direction: column; gap: 8px; min-width: 0; border: 0; padding: 0; margin: 0; }
+.lab { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); padding: 0; white-space: nowrap; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn {
+  font: 600 14px var(--font-body); color: var(--ink);
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 14px; min-height: 40px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn:hover { border-color: var(--ink2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 104px; justify-content: center; }
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.btn:focus-visible, .seg input:focus-visible + label, input[type=range]:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.seg { position: relative; display: inline-flex; }
+.seg input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.seg label {
+  font: 500 14px var(--font-body); color: var(--ink);
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 12px; min-height: 40px; display: inline-flex; align-items: center; cursor: pointer;
+}
+.seg input:checked + label { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.scrub { display: flex; align-items: center; gap: 12px; }
+.scrub input[type=range] { flex: 1; min-width: 0; }
+input[type=range] { accent-color: var(--accent); height: 28px; }
+input[type=range]:disabled { opacity: 0.4; }
+.tval { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; min-width: 7ch; text-align: right; white-space: nowrap; }
+.hint { font-size: 13px; color: var(--ink2); min-height: 2.9em; }
+
+.phase {
+  font-size: 16px; padding: 10px 14px; border-left: 4px solid var(--accent);
+  background: var(--panel); border-radius: 0 6px 6px 0; min-height: 3.4em; max-width: 100%;
+}
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink2); }
+.legend li { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { display: inline-block; width: 24px; height: 0; border-top: 3px solid currentColor; }
+.legend i.dash { border-top-style: dashed; }
+.legend i.thick { border-top-width: 9px; opacity: 0.4; }
+
+/* rigs */
+.duo { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); }
+.rig {
+  background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--ink2);
+  border-radius: 8px; padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+}
+.rig.on { border-top-color: var(--accent); }
+.rig-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.rig-h h2 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.05; letter-spacing: 0.01em; text-transform: uppercase; }
+.tag { font-family: var(--font-mono); font-size: 12px; color: var(--ink2); }
+canvas { display: block; width: 100%; height: auto; border-radius: 4px; }
+canvas.scene { aspect-ratio: 560 / 300; }
+canvas.camview { aspect-ratio: 560 / 190; background: #04060a; }
+canvas.chart { aspect-ratio: 560 / 230; border: 1px solid var(--line); }
+.readout { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.readout div { background: var(--panel2); border-radius: 4px; padding: 6px 8px; min-width: 0; }
+.readout dt { font-size: 12px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+.readout dd { margin: 0; font-family: var(--font-mono); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.readout .cs { color: var(--seam); } .readout .cl { color: var(--laser); }
+.readout .bad { color: var(--trk-bad); } .readout .ok { color: var(--trk-good); }
+.stat { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.stat .lbl { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink2); }
+.stat .big { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--ink2); }
+.stat .big b { font-size: 46px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.badge { font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px; }
+.badge.ok { background: var(--good-bg); color: var(--good); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.msg { font-size: 14px; color: var(--ink2); min-height: 3em; }
+
+/* panels */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel h2 { font-family: var(--font-display); font-weight: 700; font-size: 26px; text-transform: uppercase; letter-spacing: 0.01em; }
+.panel-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 380px; }
+th, td { padding: 8px 12px; border: 1px solid var(--line); text-align: center; }
+thead th { background: var(--panel2); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink2); }
+tbody th { text-align: left; font-weight: 500; font-size: 14px; background: var(--panel); }
+td { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+td.mark { color: var(--accent); }
+td.ok { color: var(--good); } td.bad { color: var(--bad); }
+.note { font-size: 14px; color: var(--ink2); max-width: 90ch; }
+
+.scroll { overflow-x: auto; }
+.loop-svg { display: block; width: 100%; max-width: 520px; margin: 0 auto; height: auto; }
+.lp-box { fill: var(--panel2); stroke: var(--line); stroke-width: 1.5; }
+.lp-box.hot { stroke: var(--accent); stroke-width: 2.5; }
+.lp-t { font: 600 17px var(--font-body); fill: var(--ink); }
+.lp-s { font: 400 13.5px var(--font-body); fill: var(--ink2); }
+.lp-v { font: 500 16px var(--font-mono); fill: var(--ink); }
+.lp-lab { font: 500 13.5px var(--font-body); fill: var(--ink2); }
+.lp-wire { fill: none; stroke: var(--ink2); stroke-width: 2; }
+.lp-head { fill: var(--ink2); }
+.flow { fill: none; stroke: var(--accent); stroke-width: 3; stroke-dasharray: 6 10; animation: dash 0.9s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -16; } }
+.is-paused .flow { animation-play-state: paused; }
+.lp-img { fill: var(--plot); stroke: var(--line); stroke-width: 1.5; }
+.lp-prof { fill: none; stroke: var(--laser); stroke-width: 2.5; stroke-linejoin: round; }
+.lp-cross { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+
+details.notes { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+details.notes summary { cursor: pointer; font-weight: 600; }
+details.notes summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+details.notes ul { margin: 10px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; color: var(--ink2); }
+
+
+/* vision pipeline list */
+.pipe { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pipe li {
+  position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+}
+.pipe li.hot { border-color: var(--accent); border-width: 2px; }
+.pipe li + li { margin-top: 12px; }
+.pipe li + li::before {
+  content: ""; position: absolute; left: 22px; top: -13px; width: 3px; height: 13px;
+  background: repeating-linear-gradient(to bottom, var(--accent) 0 4px, transparent 4px 8px); background-size: 3px 8px;
+  animation: flowv 0.6s linear infinite;
+}
+@keyframes flowv { to { background-position: 0 8px; } }
+.is-paused .pipe li + li::before { animation-play-state: paused; }
+.pipe .n { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+.pipe b { display: block; font-size: 14px; line-height: 1.25; }
+.pipe small { display: block; font-size: 12px; color: var(--ink2); line-height: 1.25; }
+.pipe code { font-family: var(--font-mono); font-size: 13px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.loopnote { font-size: 12.5px; color: var(--ink2); }
+
+/* One-screen landscape mode: OFF | ON | pipeline and results, no scrolling */
+@media (min-width: 1100px) and (min-height: 760px) {
+  html, body { height: 100%; }
+  body { padding-block: 10px; }
+  .app { max-width: none; height: 100%; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; }
+  .top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  .titleblk { justify-content: center; gap: 6px; padding-right: 8px; }
+  h1 { font-size: 42px; }
+  .lede { display: none; }
+  .controls { padding: 8px 14px; gap: 6px 24px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: center; }
+  .grp { gap: 6px; }
+  .btn, .seg label { min-height: 34px; padding: 5px 10px; font-size: 13px; }
+  .btn.primary { min-width: 96px; }
+  input[type=range] { height: 22px; }
+  .hint { min-height: 0; font-size: 12.5px; line-height: 1.35; }
+  .infobar { flex-direction: row; align-items: center; justify-content: space-between; gap: 20px; }
+  .phase { flex: 1; min-height: 0; font-size: 15px; padding: 6px 12px; }
+  .legend { flex: none; justify-content: flex-end; }
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr); gap: 10px; min-height: 0; }
+  .duo { display: contents; }
+  .rig { min-height: 0; padding: 8px 10px 10px; gap: 6px; border-top-width: 3px; }
+  .rig-h h2 { font-size: 24px; }
+  canvas.scene { flex: 54 1 0%; min-height: 150px; aspect-ratio: auto; height: auto; }
+  canvas.chart { flex: 34 1 0%; min-height: 110px; aspect-ratio: auto; height: auto; }
+  canvas.camview { flex: none; height: clamp(100px, 12.5vh, 140px); aspect-ratio: auto; }
+  .loopnote { display: none; }
+  .pipe-panel { flex: 1 1 0; min-height: 0; overflow: auto; }
+  .pipe li { padding: 4px 9px; }
+  .pipe li + li { margin-top: 9px; }
+  .pipe li + li::before { top: -10px; height: 10px; }
+  .pipe small { display: none; }
+  .pipe b { font-size: 13.5px; }
+  .readout div { padding: 3px 7px; }
+  .readout dd { font-size: 15px; }
+  .stat .big b { font-size: 36px; }
+  .msg { font-size: 13px; min-height: 2.7em; }
+  .side { min-height: 0; overflow: auto; gap: 10px; }
+  .panel { padding: 8px 12px 10px; gap: 6px; }
+  .panel h2 { font-size: 22px; }
+  .tablewrap { overflow: visible; }
+  table { min-width: 0; }
+  th, td { padding: 4px 8px; }
+  thead th { font-size: 10.5px; letter-spacing: 0.04em; }
+  tbody th { font-size: 12.5px; }
+  td { font-size: 24px; }
+  .note { font-size: 12.5px; }
+  details.notes { padding: 6px 12px; }
+}
+@media (max-width: 560px) {
+  .readout { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .readout dd { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) { .flow { animation: none; } }
+</style>
+
+<main class="app" id="app">
+  <header class="top">
+    <div class="titleblk">
+      <p class="eyebrow">Stage 4 · AI &amp; Digital Twin</p>
+      <h1>Laser Seam Tracking</h1>
+      <p class="lede">Two overlapped panels are welded by a robot. A laser line projected across the joint jogs at the panel edge, and a camera follows that jog to correct the path in real time.</p>
+    </div>
+    <section class="controls" aria-label="Simulation controls">
+      <div class="grp">
+        <div class="row">
+          <button class="btn primary" id="play" type="button"></button>
+          <button class="btn" id="restart" type="button">Restart</button>
+          <span class="seg"><input type="radio" name="speed" id="sp4" value="4"><label for="sp4">Real time</label></span>
+          <span class="seg"><input type="radio" name="speed" id="sp10" value="10" checked><label for="sp10">Normal</label></span>
+          <span class="seg"><input type="radio" name="speed" id="sp20" value="20"><label for="sp20">Slow</label></span>
+        </div>
+        <div class="scrub">
+          <label for="scrub" class="lab">Position</label>
+          <input type="range" id="scrub" min="0" max="4000" step="5" value="4000">
+          <output class="tval" id="tlabel" for="scrub">240 mm</output>
+        </div>
+      </div>
+      <fieldset class="grp">
+        <legend class="lab">Seam disturbance</legend>
+        <div class="row">
+          <span class="seg"><input type="radio" name="scen" id="sc-none" value="none"><label for="sc-none">None</label></span>
+          <span class="seg"><input type="radio" name="scen" id="sc-fit" value="fit" checked><label for="sc-fit">Fit-up</label></span>
+          <span class="seg"><input type="radio" name="scen" id="sc-shift" value="shift"><label for="sc-shift">Shifted</label></span>
+          <span class="seg"><input type="radio" name="scen" id="sc-drift" value="drift"><label for="sc-drift">Drift</label></span>
+          <span class="seg"><input type="radio" name="scen" id="sc-step" value="step"><label for="sc-step">Step</label></span>
+        </div>
+        <div class="scrub">
+          <label for="sev" class="lab">Severity</label>
+          <input type="range" id="sev" min="0" max="100" step="5" value="60">
+          <output class="tval" id="sevlabel" for="sev">60 %</output>
+        </div>
+        <p class="hint" id="scenInfo"></p>
+      </fieldset>
+      <fieldset class="grp">
+        <legend class="lab">Camera</legend>
+        <div class="scrub">
+          <label for="look" class="lab">Look-ahead</label>
+          <input type="range" id="look" min="2" max="40" step="1" value="20">
+          <output class="tval" id="looklabel" for="look">20 mm</output>
+        </div>
+        <div class="scrub">
+          <label for="noise" class="lab">Image noise</label>
+          <input type="range" id="noise" min="0" max="100" step="5" value="30">
+          <output class="tval" id="noiselabel" for="noise">30 %</output>
+        </div>
+        <p class="hint" id="camInfo"></p>
+      </fieldset>
+    </section>
+  </header>
+
+  <div class="infobar">
+    <p class="phase" id="phase" aria-live="off"></p>
+    <ul class="legend" aria-label="Legend">
+      <li style="color:var(--taught)"><i class="thick"></i>Seam ±0.3 mm</li>
+      <li style="color:var(--taught)"><i class="dash"></i>Taught path</li>
+      <li style="color:var(--trk-good)"><i></i>Laser in tolerance</li>
+      <li style="color:var(--trk-bad)"><i></i>Out of tolerance</li>
+      <li style="color:var(--laser)"><i></i>Laser line sensor</li>
+    </ul>
+  </div>
+
+  <div class="stage">
+    <section class="duo" id="duo"></section>
+
+    <aside class="side">
+      <section class="panel cam" aria-label="Camera image">
+        <div class="panel-h"><h2>Camera image</h2><span class="tag">what the laser line sensor sees</span></div>
+        <canvas class="camview" id="camOn" role="img" aria-label="Camera image: a bright laser line crosses the overlapped panels and jogs at the panel edge, with the weld spot below."></canvas>
+      </section>
+
+      <section class="panel pipe-panel" aria-label="Vision pipeline">
+        <div class="panel-h"><h2>Vision pipeline</h2><span class="tag">live values, tracking ON</span></div>
+        <ol class="pipe">
+          <li><span class="n">1</span><div><b>Image capture</b><small id="ldCapSub">Laser line sensor, 20 mm ahead</small></div><code id="ldFrame">frame 0</code></li>
+          <li><span class="n">2</span><div><b>Seam detection</b><small>Finds the jog in the laser line</small></div><code id="ldSeam">0.00 mm</code></li>
+          <li><span class="n">3</span><div><b>Offset calculation</b><small>Seam minus taught path, spatter filtered out</small></div><code id="ldOff">0.00 mm</code></li>
+          <li class="hot"><span class="n">4</span><div><b>Path correction</b><small>New path point, led by the robot lag</small></div><code id="ldCmd">0.00 mm</code></li>
+          <li><span class="n">5</span><div><b>Robot / laser adjustment</b><small>Lateral axis follows the new point</small></div><code id="ldLaser">laser 0.00 mm</code></li>
+        </ol>
+        <p class="loopnote">Closed loop: the camera keeps seeing the actual seam after every correction.</p>
+      </section>
+
+      <section class="panel" aria-label="Seam quality results">
+        <h2>Weld seam quality</h2>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th scope="col">Whole 240 mm seam</th><th scope="col">Tracking OFF</th><th scope="col">Tracking ON</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">In tolerance (%)</th><td id="rPctOff">0</td><td id="rPctOn" class="mark">0</td></tr>
+              <tr><th scope="row">Defective length (mm)</th><td id="rDefOff">0</td><td id="rDefOn" class="mark">0</td></tr>
+              <tr><th scope="row">RMS error (mm)</th><td id="rRmsOff">0</td><td id="rRmsOn" class="mark">0</td></tr>
+              <tr><th scope="row">Largest error (mm)</th><td id="rMaxOff">0</td><td id="rMaxOn" class="mark">0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note" id="resultNote"></p>
+      </section>
+
+      <details class="notes">
+        <summary>About this model</summary>
+        <ul>
+          <li>This is a teaching model, not a calibrated process simulation. Weld position error is the lateral distance between the seam and the laser spot, and it must stay within ±0.3 mm.</li>
+          <li>The sensor projects a laser line across the lap joint. The upper panel is higher than the lower one, so the line is not in one straight line across the two panels. The sideways position of that jog is the seam position. The jog height drawn here is for clarity.</li>
+          <li>Travel speed is 60 mm/s over a 240 mm seam, welding upward. The camera runs at 200 frames per second and looks ahead of the weld spot. A pre-scan finds the seam start before welding.</li>
+          <li>Each frame passes through image processing and communication (60 ms), a median filter over five frames, and a lead of one robot lag (40 ms). The lateral axis then follows the corrected point.</li>
+          <li>The sideways scale in the close-up is stretched so that sub-millimetre errors are visible. The seam disturbances are examples, not measured data.</li>
+        </ul>
+      </details>
+    </aside>
+  </div>
+</main>
+
+<script>
+(function () {
+'use strict';
+/* ---- Seam tracking model (teaching model) ----
+   The seam is a lateral offset y_s(x) from the taught path (y = 0).
+   Tracking OFF: the laser stays on the taught path.
+   Tracking ON : a laser line sensor looks L mm ahead, the image is processed (latency),
+                 a median filter rejects spatter spikes, the path point is led by the robot
+                 lag, and the robot axis follows it through a first-order lag. */
+var P = {
+  v: 60,          // mm/s travel speed
+  seamLen: 240,   // mm
+  dt: 0.005,      // s, camera frame time (200 frames/s)
+  tol: 0.30,      // mm, lateral tolerance of the laser spot on the seam
+  tauLat: 0.060,  // s, image capture + processing + communication
+  tauR: 0.040,    // s, robot lateral axis lag
+  passPct: 98     // % of seam length that must be inside tolerance
+};
+P.tEnd = P.seamLen / P.v;
+P.g = P.v * P.dt;                       // mm of travel per frame (0.3 mm)
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* fixed random numbers so the same weld always gives the same picture */
+var RND = (function () {
+  var r = mulberry32(11), M = Math.round((P.seamLen + 80) / P.g) + 2, G = [], U = [], S = [];
+  for (var j = 0; j < M; j++) {
+    var u1 = Math.max(r(), 1e-9), u2 = r();
+    G.push(Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2));
+    U.push(r()); S.push(r() < 0.5 ? -1 : 1);
+  }
+  return { G: G, U: U, S: S, M: M };
+})();
+
+function smooth(u) { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); }
+
+function seamY(x, scen, s) {
+  if (x > P.seamLen) x = P.seamLen;
+  switch (scen) {
+    case 'fit':   return s * (1.2 * Math.sin(2 * Math.PI * x / 160 + 0.6) + 0.5 * Math.sin(2 * Math.PI * x / 55 + 1.0));
+    case 'shift': return s * (-0.8 + 0.012 * x);
+    case 'drift': return s * 2.2 * Math.pow(x / P.seamLen, 1.6);
+    case 'step':  return s * 1.6 * smooth((x - 112) / 8);
+    default:      return 0;
+  }
+}
+
+function buildMeas(q) {
+  var M = RND.M, raw = [], f = [], j, k;
+  var sig = 0.02 + 0.2 * q.noise, pOut = 0.01 + 0.05 * q.noise, amp = 0.3 + 1.5 * q.noise;
+  for (j = 0; j < M; j++) {
+    raw.push(seamY(j * P.g, q.scen, q.sev) + sig * RND.G[j] + (RND.U[j] < pOut ? amp * RND.S[j] : 0));
+  }
+  for (j = 0; j < M; j++) {
+    var w = [];
+    for (k = j - 2; k <= j + 2; k++) w.push(raw[clamp(k, 0, M - 1)]);
+    w.sort(function (a, b) { return a - b; });
+    f.push(w[2]);
+  }
+  return { raw: raw, f: f };
+}
+
+function interp(arr, pos) {
+  var u = clamp(pos / P.g, 0, arr.length - 1.001), j = Math.floor(u), a = u - j;
+  return arr[j] * (1 - a) + arr[j + 1] * a;
+}
+
+function run(q, meas, on) {
+  var n = Math.round(P.tEnd / P.dt) + 1, i;
+  var o = { t: [], x: [], ys: [], yl: [], e: [], cmd: [], ahead: [], aheadF: [], img: [], bad: [], cumBad: [] };
+  var yl = 0, nBad = 0, sum2 = 0, mx = 0, k = 1 - Math.exp(-P.dt / P.tauR);
+  for (i = 0; i < n; i++) {
+    var t = i * P.dt, x = P.v * t, ys = seamY(x, q.scen, q.sev), cmd = 0, ah = 0, ahF = 0;
+    if (on) {
+      var xa = P.v * Math.max(0, t - P.tauLat) + q.L;          // furthest seam point already processed
+      var pos = Math.min(x + P.v * P.tauR, xa);                 // lead the command by the robot lag
+      cmd = interp(meas.f, pos);
+      if (i === 0) yl = cmd; else yl += (cmd - yl) * k;
+      ah = interp(meas.raw, x + q.L); ahF = interp(meas.f, x + q.L);
+    }
+    var e = ys - yl, bad = Math.abs(e) > P.tol;
+    if (bad) nBad++;
+    sum2 += e * e; mx = Math.max(mx, Math.abs(e));
+    o.t.push(t); o.x.push(x); o.ys.push(ys); o.yl.push(yl); o.e.push(e); o.cmd.push(cmd);
+    o.ahead.push(ah); o.aheadF.push(ahF); o.img.push(on ? ah - yl : 0); o.bad.push(bad); o.cumBad.push(nBad);
+  }
+  o.n = n;
+  o.pct = 100 * (1 - nBad / n);
+  o.defLen = nBad * P.g;
+  o.rms = Math.sqrt(sum2 / n);
+  o.max = mx;
+  return o;
+}
+
+function simulate(q) {
+  var meas = buildMeas(q);
+  return { off: run(q, meas, false), on: run(q, meas, true) };
+}
+
+if (typeof module !== 'undefined') module.exports = { P: P, simulate: simulate };
+
+
+var $ = function (s) { return document.querySelector(s); };
+var state = { scen: 'fit', sev: 0.6, L: 20, noise: 0.3, t: P.tEnd, playing: false, dur: 10, dirty: true, phase: 0 };
+var SIM = {}, C = null;
+var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+var SCEN_INFO = {
+  none: 'The part matches the taught path exactly. Both welds stay on the seam.',
+  fit: 'Sheet-metal fit-up varies from part to part, so the seam wanders around the taught path.',
+  shift: 'The part is clamped off position and slightly rotated, so the seam crosses the taught path at an angle.',
+  drift: 'Heat from welding distorts the part, so the seam drifts away from the taught path along the weld.',
+  step: 'A mismatch in the joint makes the seam jump sideways about halfway along.'
+};
+
+function recompute() {
+  SIM = simulate({ scen: state.scen, sev: state.sev, L: state.L, noise: state.noise });
+  var mxY = 0, mxE = 0, i;
+  for (i = 0; i < SIM.off.n; i++) {
+    mxY = Math.max(mxY, Math.abs(SIM.off.ys[i]), Math.abs(SIM.on.yl[i]));
+    mxE = Math.max(mxE, Math.abs(SIM.off.e[i]), Math.abs(SIM.on.e[i]));
+  }
+  SIM.lat = Math.max(1.2, Math.ceil(mxY * 1.3 * 4) / 4);
+  SIM.E = Math.max(1, Math.ceil(mxE * 1.25 * 2) / 2);
+}
+
+/* ---------- rig markup ---------- */
+function rigHTML(key, title, tag) {
+  var rd = [['x', 'x (mm)', ''], ['S', 'Seam y', 'cs'], ['L', 'Laser y', 'cl'], ['E', 'Error', ''], ['T', 't (s)', '']];
+  var dl = rd.map(function (r) { return '<div><dt>' + r[1] + '</dt><dd class="' + r[2] + '" id="rd' + key + r[0] + '">0</dd></div>'; }).join('');
+  return '<header class="rig-h"><h2>' + title + '</h2><span class="tag">' + tag + '</span></header>' +
+    '<canvas class="scene" id="scene' + key + '" role="img" aria-label="Close-up of two overlapped panels with the laser line, the panel edge and the weld spot, ' + title + '"></canvas>' +
+    '<canvas class="chart" id="chart' + key + '" role="img" aria-label="Lateral error between seam and laser along the seam, ' + title + '"></canvas>' +
+    '<dl class="readout">' + dl + '</dl>' +
+    '<div class="stat"><div><span class="lbl">Seam in tolerance so far</span><span class="big"><b id="p' + key + '">100</b> %</span></div><span class="badge" id="v' + key + '"></span></div>' +
+    '<p class="msg" id="msg' + key + '"></p>';
+}
+(function () {
+  var duo = $('#duo');
+  var a = document.createElement('article'); a.className = 'rig off';
+  a.innerHTML = rigHTML('Off', 'Tracking off', 'robot follows the taught path');
+  var b = document.createElement('article'); b.className = 'rig on';
+  b.innerHTML = rigHTML('On', 'Tracking on', 'camera corrects the path in real time');
+  duo.appendChild(a); duo.appendChild(b);
+})();
+
+/* ---------- canvas helpers ---------- */
+function readColors() {
+  var cs = getComputedStyle(document.documentElement);
+  var g = function (n) { return cs.getPropertyValue(n).trim(); };
+  C = { ink: g('--ink'), ink2: g('--ink2'), line: g('--line'), grid: g('--grid'), plot: g('--plot'), metal: g('--metal'),
+    accent: g('--accent'), seam: g('--seam'), band: g('--band'), taught: g('--taught'),
+    good: g('--trk-good'), bad: g('--trk-bad'), laser: g('--laser'),
+    pback: g('--pback'), pfront: g('--pfront'), pshadow: g('--pshadow') };
+}
+function prep(cv) {
+  var r = cv.getBoundingClientRect();
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  var ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx: ctx, W: r.width, H: r.height };
+}
+var MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
+
+function hash(n) { var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+
+function strokeBead(ctx, S, from, to, PX, lw, alpha) {
+  ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = alpha;
+  var i = from, run = S.bad[i], q = PX(i);
+  ctx.beginPath(); ctx.moveTo(q[0], q[1]);
+  for (i = from + 1; i <= to; i++) {
+    q = PX(i); ctx.lineTo(q[0], q[1]);
+    if (S.bad[i] !== run) { ctx.strokeStyle = run ? C.bad : C.good; ctx.stroke(); run = S.bad[i]; ctx.beginPath(); ctx.moveTo(q[0], q[1]); }
+  }
+  ctx.strokeStyle = run ? C.bad : C.good; ctx.stroke(); ctx.globalAlpha = 1;
+}
+
+function laserLine(ctx, W, y, ex, jog) {
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(Math.max(0, ex - 6), y); ctx.lineTo(ex + 6, y - jog); ctx.lineTo(W, y - jog);
+}
+
+/* ---------- close-up: two overlapped panels, laser line, weld spot ---------- */
+function drawScene(cv, S, idx, on) {
+  var p = prep(cv), ctx = p.ctx, W = p.W, H = p.H;
+  ctx.clearRect(0, 0, W, H);
+  var x = S.x[idx], behind = 14, ahead = Math.max(state.L, 12) + 8, win = behind + ahead;
+  var mb = 10, ppm = (H - 20) / win;
+  var Yv = function (pos) { return H - mb - (pos - (x - behind)) * ppm; };
+  var sx = Math.min(46, (W / 2 - 26) / (SIM.lat + 0.6)), cx = W / 2;
+  var Xl = function (y) { return cx + y * sx; };
+  var pts = [], pos, k;
+
+  ctx.fillStyle = C.pback; ctx.fillRect(0, 0, W, H);
+  for (pos = x - behind; pos <= x + ahead + 1; pos += 1) pts.push([Xl(seamY(Math.max(0, pos), state.scen, state.sev)), Yv(pos)]);
+  function edgePath() { ctx.beginPath(); pts.forEach(function (q, n) { if (n === 0) ctx.moveTo(q[0], q[1]); else ctx.lineTo(q[0], q[1]); }); }
+
+  // edge shadow, front panel, edge highlight
+  edgePath(); ctx.strokeStyle = C.pshadow; ctx.lineWidth = 10; ctx.lineJoin = 'round'; ctx.stroke();
+  edgePath(); ctx.lineTo(W + 4, pts[pts.length - 1][1]); ctx.lineTo(W + 4, pts[0][1]); ctx.closePath();
+  ctx.fillStyle = C.pfront; ctx.fill();
+  edgePath(); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+  // tolerance band around the seam
+  edgePath(); ctx.strokeStyle = C.band; ctx.lineWidth = Math.max(6, 2 * P.tol * sx); ctx.stroke();
+
+  // taught path
+  ctx.save(); ctx.setLineDash([7, 5]); ctx.strokeStyle = C.taught; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke(); ctx.restore();
+
+  // weld bead behind the spot
+  var i0 = Math.max(0, idx - Math.ceil(behind / P.g));
+  var PX = function (i) { return [Xl(S.yl[i]), Yv(S.x[i])]; };
+  if (idx > i0) { strokeBead(ctx, S, i0, idx, PX, 10, 0.25); strokeBead(ctx, S, i0, idx, PX, 4, 1); }
+
+  // laser line sensor, jogging at the panel edge
+  if (on) {
+    var yL = Yv(x + state.L), ex = Xl(seamY(x + state.L, state.scen, state.sev)), jog = 9;
+    laserLine(ctx, W, yL, ex, jog); ctx.strokeStyle = C.laser; ctx.lineWidth = 11; ctx.globalAlpha = 0.18; ctx.stroke();
+    laserLine(ctx, W, yL, ex, jog); ctx.lineWidth = 4.5; ctx.globalAlpha = 0.55; ctx.stroke();
+    laserLine(ctx, W, yL, ex, jog); ctx.strokeStyle = '#ffe9ef'; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.95; ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.fillStyle = C.accent; ctx.beginPath(); ctx.moveTo(ex, yL + 5); ctx.lineTo(ex - 6, yL + 16); ctx.lineTo(ex + 6, yL + 16); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.ink; ctx.font = '500 11px ' + MONO; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('laser line, ' + state.L + ' mm ahead', W - 8, yL - jog - 7);
+  }
+
+  // weld spot with glow and sparks
+  var spx = Xl(S.yl[idx]), spy = Yv(x);
+  var gr = ctx.createRadialGradient(spx, spy, 0, spx, spy, 30);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.22, 'rgba(255,214,140,0.95)');
+  gr.addColorStop(0.55, 'rgba(255,120,50,0.45)'); gr.addColorStop(1, 'rgba(255,90,40,0)');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(spx, spy, 30, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,214,140,0.9)'; ctx.lineWidth = 1.4;
+  for (k = 0; k < 11; k++) {
+    var ang = k * 0.571 + hash(k) * 0.4, len = 12 + 16 * hash(k * 3.3 + state.phase * 0.25);
+    ctx.beginPath(); ctx.moveTo(spx + Math.cos(ang) * 10, spy + Math.sin(ang) * 10);
+    ctx.lineTo(spx + Math.cos(ang) * (10 + len), spy + Math.sin(ang) * (10 + len)); ctx.stroke();
+  }
+
+  // labels and scale
+  ctx.fillStyle = C.ink; ctx.font = '500 11px ' + MONO; ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left'; ctx.fillText('panel 1 (back)', 8, 15);
+  ctx.textAlign = 'right'; if (!on) ctx.fillText('panel 2 (front)', W - 8, 15);
+  else ctx.fillText('panel 2 (front)', W - 8, 15);
+  ctx.textAlign = 'left'; ctx.fillText('lateral ×' + (sx / ppm).toFixed(0), 8, 29);
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath();
+  ctx.moveTo(10, H - 12); ctx.lineTo(10 + sx, H - 12); ctx.moveTo(10, H - 16); ctx.lineTo(10, H - 8); ctx.moveTo(10 + sx, H - 16); ctx.lineTo(10 + sx, H - 8); ctx.stroke();
+  ctx.fillText('1 mm', 16 + sx, H - 8);
+  ctx.textAlign = 'right'; ctx.fillStyle = C.taught; ctx.fillText('taught path', cx - 6, H - 8);
+  ctx.fillStyle = C.ink; ctx.fillText('weld ↑', W - 8, H - 8);
+}
+
+/* ---------- camera image: laser line with a jog, weld spot below ---------- */
+function drawCam(cv, S, idx) {
+  var p = prep(cv), ctx = p.ctx, W = p.W, H = p.H;
+  ctx.fillStyle = '#04060a'; ctx.fillRect(0, 0, W, H);
+  var L = state.L, x = S.x[idx], d0 = -6, d1 = L + 10, d, k;
+  var ppm = (H - 18) / (d1 - d0), Yd = function (dd) { return H - 9 - (dd - d0) * ppm; };
+  var sx = Math.min(78, (W / 2 - 14) / (SIM.lat + 1)), cx = W / 2, yl = S.yl[idx];
+  var cl = function (v) { return clamp(v, 8, W - 8); };
+
+  // panel edge (not lit, shown very dim)
+  ctx.beginPath();
+  for (d = d0; d <= d1; d += 1) { var qx = cx + (seamY(Math.max(0, x + d), state.scen, state.sev) - yl) * sx; if (d === d0) ctx.moveTo(qx, Yd(d)); else ctx.lineTo(qx, Yd(d)); }
+  ctx.setLineDash([2, 4]); ctx.strokeStyle = 'rgba(150,170,195,0.3)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+  // tool centre line
+  ctx.strokeStyle = 'rgba(225,232,245,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(cx) + 0.5, 0); ctx.lineTo(Math.round(cx) + 0.5, H); ctx.stroke();
+
+  // weld plume at the tool centre
+  var wy = Yd(0);
+  var g = ctx.createRadialGradient(cx, wy, 0, cx, wy, 52);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,240,225,0.85)'); g.addColorStop(0.65, 'rgba(255,200,150,0.25)'); g.addColorStop(1, 'rgba(255,170,120,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, wy, 52, 0, Math.PI * 2); ctx.fill();
+  [[10, -14, 22], [-2, -28, 18], [16, -34, 13], [4, -6, 20]].forEach(function (e) {
+    var pg = ctx.createRadialGradient(cx + e[0], wy + e[1], 0, cx + e[0], wy + e[1], e[2]);
+    pg.addColorStop(0, 'rgba(255,255,255,0.85)'); pg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(cx + e[0], wy + e[1], e[2], 0, Math.PI * 2); ctx.fill();
+  });
+
+  // laser line with jog
+  var yL = Yd(L), ex = cl(cx + (seamY(x + L, state.scen, state.sev) - yl) * sx), jog = 16, seed = Math.floor(idx / 3);
+  function linePath() {
+    ctx.beginPath();
+    for (var X = 0; X <= W; X += 3) {
+      var base = X < ex - 6 ? yL : (X > ex + 6 ? yL - jog : yL - jog * (X - (ex - 6)) / 12);
+      var yy = base + (hash(X * 0.31 + seed * 1.7) - 0.5) * (0.8 + 5 * state.noise);
+      if (X === 0) ctx.moveTo(X, yy); else ctx.lineTo(X, yy);
+    }
+  }
+  linePath(); ctx.strokeStyle = C.laser; ctx.lineWidth = 9; ctx.globalAlpha = 0.25; ctx.lineJoin = 'round'; ctx.stroke();
+  linePath(); ctx.lineWidth = 3.2; ctx.globalAlpha = 1; ctx.stroke();
+  linePath(); ctx.strokeStyle = '#ffe9ef'; ctx.lineWidth = 1; ctx.stroke();
+  // spatter specks
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  for (k = 0; k < Math.round(1 + state.noise * 14); k++) {
+    ctx.beginPath(); ctx.arc(hash(k * 7.3 + seed) * W, yL + (hash(k * 3.1 + seed * 1.3) - 0.5) * 70, 0.8 + hash(k + seed) * 2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // detected seam: filtered (tick) and raw (ring)
+  var fx = cl(cx + (S.aheadF[idx] - yl) * sx), rx = cl(cx + S.img[idx] * sx);
+  ctx.strokeStyle = '#c9a5ff'; ctx.fillStyle = '#c9a5ff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(fx, yL - jog - 12); ctx.lineTo(fx, yL + 14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(fx, yL + 16); ctx.lineTo(fx - 5, yL + 26); ctx.lineTo(fx + 5, yL + 26); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(rx, yL - jog / 2, 5, 0, Math.PI * 2); ctx.stroke();
+
+  // offset arrow from the tool centre to the detected seam
+  var off = S.aheadF[idx] - yl, ay = Math.min(H - 14, yL + 40);
+  if (Math.abs(fx - cx) > 6) {
+    ctx.strokeStyle = '#c9a5ff'; ctx.fillStyle = '#c9a5ff'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(cx, ay); ctx.lineTo(fx, ay); ctx.stroke();
+    var dir = fx > cx ? 1 : -1;
+    ctx.beginPath(); ctx.moveTo(fx, ay); ctx.lineTo(fx - dir * 7, ay - 4); ctx.lineTo(fx - dir * 7, ay + 4); ctx.closePath(); ctx.fill();
+  }
+
+  // overlay text
+  ctx.font = '500 11px ' + MONO; ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left'; ctx.fillStyle = '#31d17c'; ctx.fillText('● LIVE  frame ' + idx, 8, 15);
+  ctx.fillStyle = '#c9a5ff'; ctx.fillText('offset ' + sg(off) + ' mm', 8, 29);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#aab6c8'; ctx.fillText('○ raw  | filtered  · look-ahead ' + L + ' mm', W - 8, H - 7);
+  ctx.fillStyle = '#aab6c8'; ctx.textAlign = 'left'; ctx.fillText('weld spot', cx + 56, wy - 8);
+}
+
+/* ---------- error chart ---------- */
+function drawChart(cv, S, idx) {
+  var p = prep(cv), ctx = p.ctx, W = p.W, H = p.H;
+  ctx.clearRect(0, 0, W, H);
+  var m = { l: 46, r: 14, t: 24, b: 36 };
+  var pw = W - m.l - m.r, ph = H - m.t - m.b, E = SIM.E, cy = m.t + ph / 2;
+  var X = function (x) { return m.l + x / P.seamLen * pw; };
+  var Y = function (e) { return cy - e / E * ph / 2; };
+  ctx.fillStyle = C.plot; ctx.fillRect(m.l, m.t, pw, ph);
+
+  // tolerance band
+  ctx.fillStyle = C.good; ctx.globalAlpha = 0.16; ctx.fillRect(m.l, Y(P.tol), pw, Y(-P.tol) - Y(P.tol)); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.good; ctx.globalAlpha = 0.7; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+  [P.tol, -P.tol].forEach(function (v) { ctx.beginPath(); ctx.moveTo(m.l, Math.round(Y(v)) + 0.5); ctx.lineTo(m.l + pw, Math.round(Y(v)) + 0.5); ctx.stroke(); });
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+
+  // grid and labels
+  var step = E <= 1.5 ? 0.5 : 1, v;
+  ctx.font = '400 11px ' + MONO; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+  for (v = -E; v <= E + 1e-9; v += step) {
+    var yy = Math.round(Y(v)) + 0.5;
+    ctx.strokeStyle = v === 0 ? C.line : C.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(m.l, yy); ctx.lineTo(m.l + pw, yy); ctx.stroke();
+    ctx.fillStyle = C.ink2; ctx.fillText((v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1), m.l - 6, yy);
+  }
+  for (var tt = 0; tt <= 240; tt += 60) {
+    var xx = Math.round(X(tt)) + 0.5;
+    ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(xx, m.t); ctx.lineTo(xx, m.t + ph); ctx.stroke();
+  }
+  ctx.strokeStyle = C.line; ctx.strokeRect(m.l + 0.5, m.t + 0.5, pw, ph);
+  ctx.fillStyle = C.ink2; ctx.textAlign = 'center';
+  for (tt = 0; tt <= 240; tt += 60) ctx.fillText(String(tt), X(tt), m.t + ph + 13);
+  ctx.fillText('position along seam (mm)', m.l + pw / 2, m.t + ph + 28);
+  ctx.textAlign = 'left'; ctx.fillStyle = C.ink2; ctx.fillText('lateral error (mm)', 4, 9);
+
+  // curve: faint whole run, bright up to playhead
+  ctx.save(); ctx.beginPath(); ctx.rect(m.l, m.t, pw, ph); ctx.clip();
+  ctx.beginPath();
+  for (var i = 0; i < S.n; i++) { var px = X(S.x[i]), py = Y(S.e[i]); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+  ctx.strokeStyle = C.ink2; ctx.globalAlpha = 0.25; ctx.lineWidth = 1.4; ctx.stroke(); ctx.globalAlpha = 1;
+  var run = S.bad[0]; ctx.beginPath(); ctx.moveTo(X(S.x[0]), Y(S.e[0])); ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  for (i = 1; i <= idx; i++) {
+    ctx.lineTo(X(S.x[i]), Y(S.e[i]));
+    if (S.bad[i] !== run) { ctx.strokeStyle = run ? C.bad : C.good; ctx.stroke(); run = S.bad[i]; ctx.beginPath(); ctx.moveTo(X(S.x[i]), Y(S.e[i])); }
+  }
+  ctx.strokeStyle = run ? C.bad : C.good; ctx.stroke();
+  ctx.restore();
+
+  // playhead
+  var hx = X(S.x[idx]);
+  ctx.strokeStyle = C.ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(hx, m.t); ctx.lineTo(hx, m.t + ph); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.arc(hx, clamp(Y(S.e[idx]), m.t, m.t + ph), 3.8, 0, Math.PI * 2); ctx.fillStyle = S.bad[idx] ? C.bad : C.good; ctx.fill();
+}
+
+/* ---------- text ---------- */
+function sg(v, d) { d = d === undefined ? 2 : d; var s = v.toFixed(d); if (parseFloat(s) === 0) return (0).toFixed(d); return (v > 0 ? '+' : '−') + Math.abs(v).toFixed(d); }
+function verdict(S) { return S.pct >= P.passPct ? { t: 'Pass', c: 'ok' } : { t: 'Rework', c: 'bad' }; }
+
+function phaseText(S, idx) {
+  var x = S.x[idx];
+  if (idx >= S.n - 1) return 'Weld finished. Compare how much of each seam stayed inside the ±' + P.tol.toFixed(1) + ' mm tolerance.';
+  if (x < 8) return 'Start of the weld. A pre-scan has found the seam start, so tracking ON begins on the seam. Tracking OFF stays on the taught path.';
+  return 'Welding upward at ' + P.v + ' mm/s. The laser line crosses both panels ' + state.L + ' mm ahead of the weld spot. It jogs at the panel edge, and the camera follows that jog.';
+}
+
+function rigMsgOff(S, idx) {
+  var e = S.e[idx];
+  if (Math.abs(e) <= P.tol) return 'The laser is on the taught path and the seam is only ' + Math.abs(e).toFixed(2) + ' mm away. Still inside tolerance.';
+  return 'No camera. The robot cannot see the jog in the laser line, so the weld spot stays on the taught path and is ' + Math.abs(e).toFixed(2) + ' mm off the seam.';
+}
+function rigMsgOn(S, idx) {
+  var e = S.e[idx], a = S.aheadF[idx];
+  if (Math.abs(e) > P.tol) return 'The correction arrived late. The laser is ' + Math.abs(e).toFixed(2) + ' mm off the seam. A longer look-ahead gives the robot more time.';
+  if (Math.abs(a) < 0.05) return 'The laser line jogs right on the taught path, ' + state.L + ' mm ahead. No correction needed.';
+  return 'The laser line jogs ' + Math.abs(a).toFixed(2) + ' mm off the taught path, ' + state.L + ' mm ahead. The path is corrected before the weld spot gets there.';
+}
+
+function updateRig(key, S, idx) {
+  $('#rd' + key + 'x').textContent = S.x[idx].toFixed(0);
+  $('#rd' + key + 'S').textContent = sg(S.ys[idx]);
+  $('#rd' + key + 'L').textContent = sg(S.yl[idx]);
+  var ed = $('#rd' + key + 'E'); ed.textContent = sg(S.e[idx]); ed.className = S.bad[idx] ? 'bad' : 'ok';
+  $('#rd' + key + 'T').textContent = S.t[idx].toFixed(2);
+  var soFar = 100 * (1 - S.cumBad[idx] / (idx + 1));
+  $('#p' + key).textContent = soFar.toFixed(0);
+  var v = verdict(S), b = $('#v' + key);
+  b.textContent = 'Final ' + S.pct.toFixed(0) + ' % · ' + v.t; b.className = 'badge ' + v.c;
+}
+
+function updateLoop(idx) {
+  var S = SIM.on, x = S.x[idx], xa = x + state.L;
+  $('#ldCapSub').textContent = 'Laser line sensor, ' + state.L + ' mm ahead of the weld spot';
+  $('#ldFrame').textContent = (xa <= P.seamLen ? 'sees x = ' + xa.toFixed(0) + ' mm' : 'past the seam end');
+  $('#ldSeam').textContent = sg(S.img[idx]) + ' mm from tool';
+  $('#ldOff').textContent = sg(S.aheadF[idx]) + ' mm from taught';
+  $('#ldCmd').textContent = 'path ' + sg(S.cmd[idx]) + ' mm';
+  $('#ldLaser').textContent = 'laser ' + sg(S.yl[idx]) + ' · err ' + sg(S.e[idx]);
+}
+
+function updateResults() {
+  var a = SIM.off, b = SIM.on;
+  function put(id, v, d, cls) { var el = $(id); el.textContent = v.toFixed(d); if (cls !== undefined) el.className = cls; }
+  put('#rPctOff', a.pct, 0, verdict(a).c); put('#rPctOn', b.pct, 0, verdict(b).c);
+  put('#rDefOff', a.defLen, 0); put('#rDefOn', b.defLen, 0);
+  put('#rRmsOff', a.rms, 2); put('#rRmsOn', b.rms, 2);
+  put('#rMaxOff', a.max, 2); put('#rMaxOn', b.max, 2);
+  var s = 'Pass means at least ' + P.passPct + ' % of the seam stays within ±' + P.tol.toFixed(1) + ' mm of the laser spot.';
+  if (b.pct < P.passPct) s += ' Tracking ON missed it. Try a longer look-ahead or lower image noise.';
+  else if (a.pct >= P.passPct) s += ' This seam needs no correction.';
+  else s += ' Tracking ON kept the laser within ' + b.max.toFixed(2) + ' mm everywhere, tracking OFF drifted up to ' + a.max.toFixed(2) + ' mm.';
+  $('#resultNote').textContent = s;
+}
+
+function updateUI() {
+  $('#scenInfo').textContent = SCEN_INFO[state.scen];
+  $('#sev').disabled = state.scen === 'none';
+  $('#sevlabel').textContent = state.scen === 'none' ? '0 %' : Math.round(state.sev * 100) + ' %';
+  $('#looklabel').textContent = state.L + ' mm';
+  $('#noiselabel').textContent = Math.round(state.noise * 100) + ' %';
+  var need = P.v * (P.tauLat + P.tauR);
+  $('#camInfo').textContent = state.L < need
+    ? 'Too short. Processing (' + (P.tauLat * 1000).toFixed(0) + ' ms) and robot lag (' + (P.tauR * 1000).toFixed(0) + ' ms) use ' + need.toFixed(1) + ' mm of travel, so corrections arrive late.'
+    : 'Enough. Processing (' + (P.tauLat * 1000).toFixed(0) + ' ms) and robot lag (' + (P.tauR * 1000).toFixed(0) + ' ms) use ' + need.toFixed(1) + ' mm of travel at ' + P.v + ' mm/s.';
+}
+
+function updatePlayBtn() {
+  var icoPlay = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1 L13 7 L2 13 Z"/></svg>';
+  var icoPause = '<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="1" width="3.5" height="12"/><rect x="8.5" y="1" width="3.5" height="12"/></svg>';
+  $('#play').innerHTML = state.playing ? icoPause + 'Pause' : icoPlay + (state.t >= P.tEnd ? 'Replay' : 'Play');
+  $('#app').classList.toggle('is-paused', !state.playing);
+}
+
+/* ---------- render ---------- */
+function render() {
+  if (!C) readColors();
+  var idx = clamp(Math.round(state.t / P.dt), 0, SIM.on.n - 1);
+  drawScene($('#sceneOff'), SIM.off, idx, false); drawChart($('#chartOff'), SIM.off, idx);
+  drawScene($('#sceneOn'), SIM.on, idx, true); drawChart($('#chartOn'), SIM.on, idx); drawCam($('#camOn'), SIM.on, idx);
+  updateRig('Off', SIM.off, idx); updateRig('On', SIM.on, idx);
+  $('#msgOff').textContent = rigMsgOff(SIM.off, idx);
+  $('#msgOn').textContent = rigMsgOn(SIM.on, idx);
+  updateLoop(idx);
+  $('#phase').textContent = phaseText(SIM.on, idx);
+  $('#tlabel').textContent = SIM.on.x[idx].toFixed(0) + ' mm · ' + state.t.toFixed(2) + ' s';
+  var sc = $('#scrub'), tv = Math.round(state.t * 1000);
+  if (+sc.value !== tv) sc.value = tv;
+}
+
+var lastTs = performance.now();
+function frame(now) {
+  var dtReal = Math.min(0.1, (now - lastTs) / 1000); lastTs = now;
+  if (state.playing) {
+    state.t += dtReal * (P.tEnd / state.dur);
+    if (!reduceMotion) state.phase += dtReal * 40;
+    if (state.t >= P.tEnd) { state.t = P.tEnd; state.playing = false; updatePlayBtn(); }
+    state.dirty = true;
+  }
+  if (state.dirty) { state.dirty = false; render(); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- events ---------- */
+function changed() { recompute(); updateUI(); updateResults(); state.dirty = true; }
+$('#play').addEventListener('click', function () {
+  if (state.playing) state.playing = false; else { if (state.t >= P.tEnd) state.t = 0; state.playing = true; }
+  updatePlayBtn(); state.dirty = true;
+});
+$('#restart').addEventListener('click', function () { state.t = 0; state.playing = true; updatePlayBtn(); state.dirty = true; });
+$('#scrub').addEventListener('input', function (e) { state.t = parseFloat(e.target.value) / 1000; state.playing = false; updatePlayBtn(); state.dirty = true; });
+Array.prototype.forEach.call(document.querySelectorAll('input[name=speed]'), function (el) {
+  el.addEventListener('change', function () { state.dur = parseFloat(el.value); });
+});
+Array.prototype.forEach.call(document.querySelectorAll('input[name=scen]'), function (el) {
+  el.addEventListener('change', function () { state.scen = el.value; changed(); });
+});
+$('#sev').addEventListener('input', function (e) { state.sev = parseFloat(e.target.value) / 100; changed(); });
+$('#look').addEventListener('input', function (e) { state.L = parseFloat(e.target.value); changed(); });
+$('#noise').addEventListener('input', function (e) { state.noise = parseFloat(e.target.value) / 100; changed(); });
+
+window.addEventListener('resize', function () { state.dirty = true; });
+if (window.ResizeObserver) new ResizeObserver(function () { state.dirty = true; }).observe($('#app'));
+function themeChanged() { C = null; state.dirty = true; }
+if (window.matchMedia) { var mq = window.matchMedia('(prefers-color-scheme: dark)'); if (mq.addEventListener) mq.addEventListener('change', themeChanged); }
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { state.dirty = true; });
+
+recompute(); updateUI(); updateResults(); updatePlayBtn();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,543 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Car Plant Process Simulator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one landscape screen. Header with shop buttons and playback, canvas stage scene left, stage information right, stage strip across the bottom. */
+:root {
+  --bg: #e9edf0; --panel: #f8fafb; --ink: #14212b; --ink2: #51606c; --line: #cfd7dd;
+  --cell: #e3e8ec; --floor: #c3ccd3; --frame: #8d99a3; --steel: #bcc6cf; --steelD: #7f8b96; --biw: #98a3ae;
+  --c1: #b2500d; --c2: #1f5ec0; --c3: #8a3fc9; --c4: #1f8a5b; --on: #ffffff;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1418; --panel: #182027; --ink: #e8edf1; --ink2: #9aa7b2; --line: #2a343d;
+  --cell: #1c252c; --floor: #2a343c; --frame: #5b6874; --steel: #8d99a5; --steelD: #5d6975; --biw: #75818c;
+  --c1: #f08a43; --c2: #6ea2f2; --c3: #c59bff; --c4: #4cc58f; --on: #0b1217; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1418; --panel: #182027; --ink: #e8edf1; --ink2: #9aa7b2; --line: #2a343d;
+  --cell: #1c252c; --floor: #2a343c; --frame: #5b6874; --steel: #8d99a5; --steelD: #5d6975; --biw: #75818c;
+  --c1: #f08a43; --c2: #6ea2f2; --c3: #c59bff; --c4: #4cc58f; --on: #0b1217; color-scheme: dark; }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.4 var(--font); padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); box-sizing: border-box; }
+h1, h2, h3, p { margin: 0; }
+.app { height: 100%; max-width: 1760px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; }
+.chip { display: inline-block; background: var(--c4); color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .08em; padding: 3px 10px; border-radius: 999px; }
+h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+.shops { display: flex; flex-wrap: wrap; gap: 6px; }
+.shopbtn { position: relative; border: 1.5px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: 600; min-width: 0; }
+.shopbtn input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+.shopbtn small { display: block; font-weight: 400; font-size: 11px; color: var(--ink2); }
+.shopbtn:has(input:checked) { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.shopbtn:has(input:checked) small { color: var(--bg); opacity: .8; }
+.shopbtn:has(input:focus-visible) { outline: 2px solid var(--c4); outline-offset: 2px; }
+.shopbtn i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.play { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+button, select { font: inherit; font-size: 13px; }
+button.b { cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; border-radius: 6px; }
+button.pri { background: var(--c4); border-color: var(--c4); color: #fff; font-weight: 600; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--c4); outline-offset: 2px; }
+select { border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 5px 8px; border-radius: 6px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.seg label { position: relative; padding: 6px 10px; cursor: pointer; color: var(--ink2); font-size: 13px; }
+.seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.seg label:has(input:checked) { background: var(--ink); color: var(--bg); }
+.scrub { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink2); }
+.scrub input { width: 170px; accent-color: var(--c4); }
+.scrub b { font-family: var(--mono); font-weight: 500; color: var(--ink); min-width: 9ch; }
+
+.main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 10px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.stage { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.sh { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.sh h2 { font-size: 16px; font-weight: 600; }
+.sh span { font-size: 12px; color: var(--ink2); }
+.cvwrap { flex: 1; min-height: 160px; position: relative; }
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); }
+.tile { padding: 6px 12px; min-width: 0; border-right: 1px solid var(--line); }
+.tile:last-child { border-right: 0; }
+.tile span { display: block; font-size: 11px; color: var(--ink2); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile b { font-family: var(--mono); font-weight: 500; font-size: 17px; font-variant-numeric: tabular-nums; }
+.info { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; overflow: auto; min-height: 0; }
+.info .tag { align-self: flex-start; color: var(--on); font-size: 11px; font-weight: 600; letter-spacing: .06em; padding: 2px 9px; border-radius: 999px; text-transform: uppercase; }
+.info h2 { font-size: 20px; font-weight: 700; text-wrap: balance; }
+.info p.t { color: var(--ink); line-height: 1.5; max-width: 62ch; }
+.io { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; }
+.io div { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12.5px; background: var(--bg); }
+.io div b { display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); font-weight: 600; }
+.io .ar { border: 0; background: none; align-self: center; font-size: 18px; color: var(--ink2); padding: 0; }
+dl.spec { margin: 0; display: grid; grid-template-columns: 96px 1fr; gap: 6px 10px; font-size: 13px; }
+dl.spec dt { color: var(--ink2); } dl.spec dd { margin: 0; min-width: 0; }
+.note { font-size: 11.5px; color: var(--ink2); }
+.strip { display: grid; grid-template-columns: 4fr 3fr 3fr 3fr; gap: 8px; }
+.grp { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 5px 7px 7px; min-width: 0; }
+.grp h3 { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.grp h3 i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.sb { border: 1px solid var(--line); background: var(--bg); color: var(--ink2); border-radius: 5px; padding: 3px 7px; font-size: 12px; cursor: pointer; text-align: left; line-height: 1.25; }
+.sb em { font-style: normal; font-family: var(--mono); font-size: 10.5px; margin-right: 4px; opacity: .8; }
+.sb.cur { color: var(--on); font-weight: 600; border-color: transparent; }
+.sb.done { color: var(--ink); }
+
+@media (max-width: 1099px), (max-height: 759px) {
+  html, body { height: auto; } .app { height: auto; } .main { grid-template-columns: 1fr; }
+  .cvwrap { flex: none; height: 300px; } .strip { grid-template-columns: 1fr 1fr; } .info { overflow: visible; }
+}
+@media (max-width: 560px) { .strip { grid-template-columns: 1fr; } h1 { font-size: 20px; } .tiles { grid-template-columns: repeat(2, 1fr); } .io { grid-template-columns: 1fr; } .io .ar { display: none; } .scrub input { width: 120px; } }
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <div><span class="chip">AUTOMOTIVE MANUFACTURING</span><h1>Car Plant Process Simulator</h1></div>
+    <div class="shops" id="shops" role="radiogroup" aria-label="Choose what to simulate"></div>
+    <div class="play">
+      <button id="play" class="b pri" type="button">Pause</button>
+      <button id="restart" class="b" type="button">Restart</button>
+      <div class="seg" role="radiogroup" aria-label="Speed"><label>1×<input type="radio" name="sp" value="1" checked></label><label>2×<input type="radio" name="sp" value="2"></label><label>4×<input type="radio" name="sp" value="4"></label></div>
+      <label class="scrub" for="paint">Paint <select id="paint"><option value="#c4262e">Red</option><option value="#2b5fb4">Blue</option><option value="#eef0f2">White</option><option value="#aab1b9">Silver</option><option value="#2f7d4f">Green</option></select></label>
+      <label class="scrub" for="scrub"><input id="scrub" type="range" min="0" max="1000" value="0"><b id="tlabel"></b></label>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel stage" aria-label="Simulation">
+      <div class="sh"><h2 id="stTitle"></h2><span id="stSub"></span></div>
+      <div class="cvwrap"><canvas id="scene" role="img" aria-label="Animated view of the current manufacturing stage"></canvas></div>
+      <div class="tiles" id="tiles"></div>
+    </section>
+    <section class="panel info" aria-label="Stage information" id="info"></section>
+  </main>
+
+  <nav class="strip" id="strip" aria-label="Process flow of the whole plant"></nav>
+</div>
+
+<script>
+(function () {
+'use strict';
+var $ = function (s) { return document.querySelector(s); };
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function sm(u) { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); }
+function seg(p, a, b) { return clamp((p - a) / (b - a), 0, 1); }
+function lerp(a, b, u) { return a + (b - a) * u; }
+function hash(n) { var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+
+/* ---------- plant data ---------- */
+var SHOPS = [
+  { n: 'Stamping Shop', s: 'steel coil to body panels', c: '--c1' }, { n: 'Body Shop', s: 'panels to body-in-white', c: '--c2' },
+  { n: 'Paint Shop', s: 'corrosion and colour', c: '--c3' }, { n: 'Trim & Final Shop', s: 'interior, chassis, wheels', c: '--c4' }];
+var ST = [
+  { shop: 0, n: 'Coil steel feeder', sh: 'Coil feeder', t: 'A steel coil is mounted on the uncoiler and unwound. The leveler removes the coil set (the curl) and a servo roll feeder pushes a precise length of flat strip into the press at every stroke.', i: 'Steel coil, about 1.8 t', o: 'Flat strip, fed in steps', eq: 'Uncoiler, leveler, servo roll feeder', au: 'Fully automatic', ct: 'One feed per press stroke (about 4 s)', qc: 'Coil width, thickness and surface checked before loading' },
+  { shop: 0, n: 'Blanking', sh: 'Blanking', t: 'The blanking die shears the outline of the panel out of the strip. The blank drops to a stacker and the leftover skeleton goes to the scrap chopper. Blank shape and nesting decide how much steel is wasted.', i: 'Strip', o: 'Flat blanks on a pallet', eq: 'Blanking press and die, stacker, scrap chopper', au: 'Fully automatic', ct: 'About 15 blanks per minute', qc: 'Blank size, burr height, double-blank detection' },
+  { shop: 0, n: 'Drawing', sh: 'Drawing', t: 'The punch pushes the blank into the die cavity while the binder ring holds the edges. The sheet stretches into the 3D panel shape. Too little binder force gives wrinkles, too much gives splits and thinning.', i: 'Flat blank', o: 'Drawn panel with flange', eq: 'Draw press (servo or double action), draw die, binder', au: 'Automatic, robot or crossbar transfer', ct: 'About 10 to 15 strokes per minute', qc: 'Splits, wrinkles, thinning (kept below about 20 %)' },
+  { shop: 0, n: 'Trim process', sh: 'Trim', t: 'Trim blades cut away the extra flange that the drawing step needed. Scrap pieces fall down a chute. Later operations (flanging, piercing) finish the panel before it goes to the Body Shop.', i: 'Drawn panel', o: 'Trimmed panel', eq: 'Trim press, trim steels, scrap chutes', au: 'Fully automatic', ct: 'About 12 strokes per minute', qc: 'Trim line position, burrs, flange length' },
+  { shop: 1, n: 'Robotic welding: sub-assembly line', sh: 'Sub-assembly', t: 'Small panels and reinforcements are clamped in a fixture. Robots with spot welding guns join them into sub-assemblies such as the floor, side frame and cross members. Many hundreds of spots are made per car.', i: 'Trimmed panels', o: 'Sub-assembly (floor, side, cross member)', eq: 'Spot welding robots, fixtures, clamps', au: 'Robots (above 90 % automated)', ct: 'About 60 to 90 s per sub-assembly', qc: 'Spot nugget quality and count, dimensional fit', tie: 'Nugget growth is covered in the adaptive spot welding simulator.' },
+  { shop: 1, n: 'Robotic welding: main assembly line', sh: 'Main assembly', t: 'In the framing station the floor, both body sides and the roof are clamped in a geometry fixture. Robots on both sides weld them into the body-in-white (BIW) shell, so the body takes its final shape here.', i: 'Floor, body sides, roof', o: 'Body-in-white shell', eq: 'Framing fixture, welding robots on both sides', au: 'Robots (above 95 % automated)', ct: 'Takt about 55 to 60 s', qc: 'Gap and fit measured by laser, weld spot checks' },
+  { shop: 1, n: 'Manual closure parts install', sh: 'Closures (doors)', t: 'Doors, hood and trunk lid are fitted by operators using lift-assist hoists. Hinge bolts are tightened with torque-controlled nutrunners, then gap and flush to the body is adjusted by hand.', i: 'BIW shell, door and hood assemblies', o: 'BIW with closures', eq: 'Hoists, nutrunners, gap and flush gauges', au: 'Manual with assist devices', ct: 'Takt about 60 s per station', qc: 'Gap and flush (about 1 mm), hinge bolt torque', tie: 'Hinge bolt torque and RFID bypass checks work like the torque line simulator.' },
+  { shop: 2, n: 'ED car dipping process', sh: 'ED dip', t: 'The body is rolled through a tank of electro-deposition (ED) paint. A DC voltage drives paint particles onto the whole steel surface, including cavities, to protect against rust. A bake oven then cures the film.', i: 'Cleaned BIW', o: 'Rust-protected body (ED coat)', eq: 'Pre-treatment tanks, ED tank, rectifier, cure oven', au: 'Fully automatic conveyors', ct: 'Immersion about 3 to 5 min', qc: 'Film thickness about 20 µm, cure temperature' },
+  { shop: 2, n: 'Robotic primer spray', sh: 'Primer spray', t: 'Robots with rotary atomizers spray the primer-surfacer. It fills small surface defects, gives chip resistance and prepares a smooth base for the colour. The booth air flows down to take overspray away.', i: 'ED-coated body', o: 'Primed body', eq: 'Painting robots (roof, door and hood openers), booth', au: 'Robots, operators inspect', ct: 'About 2 to 3 min in booth', qc: 'Film about 25 to 35 µm, surface defects' },
+  { shop: 2, n: 'Robotic color spray', sh: 'Colour spray', t: 'Robots first apply the base coat (the colour), then the clear coat that gives gloss and protection. Film build is controlled by flow rate, bell speed and robot path. An oven cures both layers.', i: 'Primed body', o: 'Painted body', eq: 'Painting robots with bell atomizers, booth, bake oven', au: 'Robots (about 100 % in booth)', ct: 'About 3 to 4 min in booth', qc: 'Base coat about 15 µm, clear coat about 40 µm, colour match' },
+  { shop: 3, n: 'Trim process: wire harness and glass sealant', sh: 'Harness & glass', t: 'Doors come off after paint so operators can route the wire harness under the dash and along the floor. A robot lays a continuous urethane sealant bead around the windshield opening, and a second robot places the glass.', i: 'Painted body, harness, glass', o: 'Wired body with windshield', eq: 'Operators, sealant robot, glass-setting robot', au: 'Manual harness, robotic glass', ct: 'Takt about 60 s', qc: 'Harness connectors seated, bead continuity, glass position' },
+  { shop: 3, n: 'Chassis: engine docking to car', sh: 'Engine docking', t: 'The engine, gearbox and front subframe are assembled on a pallet and lifted from below to meet the body that hangs on an overhead carrier. This is called the marriage or decking. Bolts are then tightened by torque-controlled tools.', i: 'Body on carrier, powertrain on AGV', o: 'Body with powertrain', eq: 'AGV or lift, overhead carrier, nutrunners', au: 'Automatic docking, torque tools', ct: 'About 60 s', qc: 'Bolt torque and angle for every bolt', tie: 'Every bolt result is stored on the torque server, as in the torque line simulator.' },
+  { shop: 3, n: 'Final: seat and wheel install', sh: 'Seats & wheels', t: 'Seats are lowered through the door opening with a balancer. Wheels are lifted to the hub by a manipulator and the wheel nuts are tightened in a star pattern. After this come fluids, wheel alignment, water test and the final inspection.', i: 'Body with chassis', o: 'Complete vehicle', eq: 'Seat balancer, wheel manipulator, nutrunners', au: 'Manual with assist devices', ct: 'Takt about 60 s', qc: 'Wheel nut torque, seat bolt torque, alignment' }];
+var NS = ST.length, DUR = 8;
+function shopRange(k) { var a = -1, b = -1; ST.forEach(function (s, i) { if (s.shop === k) { if (a < 0) a = i; b = i; } }); return [a, b + 1]; }
+
+/* ---------- state ---------- */
+var state = { t: 2, playing: true, speed: 1, scope: 'all', dirty: true };
+var C = null, ctx = null, last = 0, lastDom = 0, lastStage = -1;
+var VW = 800, VH = 420, GY = 372;
+
+/* ---------- drawing helpers ---------- */
+function readColors() {
+  var cs = getComputedStyle(document.documentElement), g = function (n) { return cs.getPropertyValue(n).trim(); };
+  C = { cell: g('--cell'), floor: g('--floor'), frame: g('--frame'), ink: g('--ink'), ink2: g('--ink2'), steel: g('--steel'), steelD: g('--steelD'), biw: g('--biw'), panel: g('--panel'), shop: [g('--c1'), g('--c2'), g('--c3'), g('--c4')], paint: $('#paint').value };
+}
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function fs(fill, stroke, lw) { if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); } }
+function poly(pts, dx, dy) { ctx.beginPath(); pts.forEach(function (p, i) { var x = p[0] + (dx || 0), y = p[1] + (dy || 0); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.closePath(); }
+function ln(x1, y1, x2, y2, col, w) { ctx.strokeStyle = col; ctx.lineWidth = w || 1; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+function tx(s, x, y, al, col, sz, b) { ctx.font = (b ? '600 ' : '') + (sz || 11) + 'px IBM Plex Sans, system-ui, sans-serif'; ctx.textAlign = al || 'left'; ctx.fillStyle = col || C.ink2; ctx.fillText(s, x, y); }
+function circ(x, y, r, fill, stroke, lw) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); fs(fill, stroke, lw); }
+function roller(x, y, r, rot) { circ(x, y, r, C.steel, C.ink, 1); for (var k = 0; k < 3; k++) { var a = rot + k * 2.094; ln(x, y, x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8, C.steelD, 2); } circ(x, y, 2.5, C.ink); }
+function arrow(x1, y1, x2, y2, col) { ln(x1, y1, x2, y2, col, 1.5); var a = Math.atan2(y2 - y1, x2 - x1); ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - 7 * Math.cos(a - 0.4), y2 - 7 * Math.sin(a - 0.4)); ctx.lineTo(x2 - 7 * Math.cos(a + 0.4), y2 - 7 * Math.sin(a + 0.4)); ctx.closePath(); ctx.fill(); }
+function link(x1, y1, x2, y2, w1, w2, col) {
+  var len = Math.hypot(x2 - x1, y2 - y1), a = Math.atan2(y2 - y1, x2 - x1); ctx.save(); ctx.translate(x1, y1); ctx.rotate(a);
+  ctx.beginPath(); ctx.moveTo(0, -w1 / 2); ctx.lineTo(len, -w2 / 2); ctx.lineTo(len, w2 / 2); ctx.lineTo(0, w1 / 2); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = '#2a2118'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(10, -w1 / 2 + 5); ctx.lineTo(len - 8, -w2 / 2 + 4); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(10, w1 / 2 - 4); ctx.lineTo(len - 8, w2 / 2 - 3); ctx.stroke(); ctx.restore();
+}
+function joint(x, y, r, col) { circ(x, y, r, col, '#2a2118', 2); circ(x, y, r * 0.5, '#f3efe6', '#2a2118', 1.5); }
+function link(x1, y1, x2, y2, w1, w2, col) {
+  var a = Math.atan2(y2 - y1, x2 - x1), nx = -Math.sin(a), ny = Math.cos(a);
+  ctx.beginPath(); ctx.moveTo(x1 + nx * w1, y1 + ny * w1); ctx.lineTo(x2 + nx * w2, y2 + ny * w2); ctx.arc(x2, y2, w2, a + Math.PI / 2, a - Math.PI / 2, true);
+  ctx.lineTo(x1 - nx * w1, y1 - ny * w1); ctx.arc(x1, y1, w1, a - Math.PI / 2, a + Math.PI / 2, true); ctx.closePath();
+  ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x1 + nx * w1 * 0.45, y1 + ny * w1 * 0.45); ctx.lineTo(x2 + nx * w2 * 0.45, y2 + ny * w2 * 0.45); ctx.stroke();
+}
+function joint(x, y, r) { circ(x, y, r, '#d5dae0', '#1c1c1c', 2); circ(x, y, r * 0.45, '#444', '#1c1c1c', 1.5); }
+function robot(bx, by, tx_, ty_, L, flip, col) {
+  var dx = tx_ - bx, dy = ty_ - by, dist = Math.hypot(dx, dy) || 1, d = Math.min(dist, 2 * L - 1), a = Math.atan2(dy, dx), b = Math.acos(d / (2 * L)), ang = a + (flip ? b : -b);
+  var ex = bx + L * Math.cos(ang), ey = by + L * Math.sin(ang), px = bx + dx / dist * d, py = by + dy / dist * d;
+  col = col || '#e8890c';
+  var ul = Math.hypot(px - ex, py - ey) || 1, ux = (px - ex) / ul, uy = (py - ey) / ul, wx = px - ux * 36, wy = py - uy * 36;
+  if (by < 110) { rr(bx - 32, by - 16, 64, 8, 2); fs('#3a3f46', '#1c1c1c', 1.5); rr(bx - 14, by - 10, 28, 14, 3); fs(col, '#1c1c1c', 2); }
+  else if (by > 300) { rr(bx - 36, by + 2, 72, 10, 3); fs('#3a3f46', '#1c1c1c', 1.5); rr(bx - 16, by - 10, 32, 16, 4); fs(col, '#1c1c1c', 2); }
+  else { rr(bx - 16, by - 12, 32, 24, 4); fs(col, '#1c1c1c', 2); }
+  link(bx, by, ex, ey, 11, 9, col); link(ex, ey, wx, wy, 9, 7, col);
+  var mx = (bx + ex) / 2, my = (by + ey) / 2; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx + (ex - bx) * 0.3, by + (ey - by) * 0.3); ctx.lineTo(bx + (ex - bx) * 0.7, by + (ey - by) * 0.7); ctx.stroke();
+  joint(bx, by, 11); joint(ex, ey, 10);
+  link(wx, wy, wx + ux * 12, wy + uy * 12, 7, 7, '#cfd4da'); joint(wx, wy, 6);
+  link(wx + ux * 12, wy + uy * 12, wx + ux * 24, wy + uy * 24, 6, 6, '#555'); link(wx + ux * 24, wy + uy * 24, px - ux * 4, py - uy * 4, 3.5, 2, '#2a2a2a'); circ(px, py, 3.2, '#2a2a2a', '#1c1c1c', 1);
+  return [px, py];
+}
+function spark(x, y, T, n) { ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.5; for (var k = 0; k < (n || 6); k++) { var a = hash(Math.floor(T * 25) * 7 + k) * 6.283, l = 4 + hash(k + Math.floor(T * 25)) * 9; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); ctx.stroke(); } circ(x, y, 3, '#fff6c8'); }
+function person(x, y, h, tipx, tipy) {
+  var c = C.ink; ln(x, y, x - 7, y - h * 0.45, c, 3); ln(x, y, x + 7, y - h * 0.45, c, 3); ln(x - 7, y - h * 0.45, x, y - h * 0.45, c, 3);
+  ln(x, y - h * 0.45, x, y - h * 0.8, '#e8890c', 7); circ(x, y - h * 0.9, h * 0.09, '#f1c9a5', c, 1);
+  ln(x, y - h * 0.76, tipx, tipy, '#e8890c', 4); circ(tipx, tipy, 2.5, '#f1c9a5');
+}
+function wheel(x, y, r, rot, nuts) {
+  circ(x, y, r, '#1b1d20', '#000', 1); circ(x, y, r * 0.86, null, '#33383e', 1.5); circ(x, y, r * 0.66, '#c3cad1', '#6b7580', 1.5);
+  for (var k = 0; k < 5; k++) { var a = rot + k * 1.2566 + 0.3; ln(x, y, x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, '#8f99a3', r * 0.14); }
+  circ(x, y, r * 0.24, '#aab3bb', '#6b7580', 1);
+  for (k = 0; k < 5; k++) { var b = rot + k * 1.2566; circ(x + Math.cos(b) * r * 0.15, y + Math.sin(b) * r * 0.15, r * 0.045, nuts ? '#222' : '#5b6670'); }
+}
+function pressFrame(cx, ramY) {
+  var w = 190; rr(cx - w, 40, 2 * w, 50, 4); fs(C.steelD, C.ink);
+  [cx - 172, cx + 152].forEach(function (x) { ctx.fillStyle = C.steel; ctx.fillRect(x, 90, 20, 262); ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.strokeRect(x, 90, 20, 262); });
+  rr(cx - w, 352, 2 * w, 20, 3); fs(C.steelD, C.ink);
+  rr(cx - 125, ramY, 250, 40, 3); fs(C.steel, C.ink); for (var i = -4; i <= 4; i++) ln(cx + i * 28, ramY + 4, cx + i * 28 + 8, ramY + 36, 'rgba(0,0,0,.18)', 1);
+  ln(cx - 80, 90, cx - 80, ramY, C.ink, 4); ln(cx + 80, 90, cx + 80, ramY, C.ink, 4);
+}
+
+/* ---------- body side view (parts can be attached, hovering or absent) ---------- */
+var D1 = [[176, -26], [274, -26], [284, -84], [240, -126], [188, -126], [178, -84]], D2 = [[84, -26], [172, -26], [172, -126], [138, -122], [104, -84], [84, -80]];
+var HOOD = [[296, -84], [380, -72], [397, -64], [397, -58], [296, -70]], TRUNK = [[2, -70], [8, -80], [92, -86], [92, -74]];
+var WIN1 = [[184, -90], [193, -121], [239, -121], [275, -90]], WIN2 = [[98, -90], [138, -118], [168, -121], [168, -90]], WS = [[240, -128], [298, -86], [284, -84], [238, -122]];
+function shell() {
+  ctx.beginPath(); ctx.moveTo(6, -22); ctx.lineTo(1, -40); ctx.lineTo(0, -64); ctx.quadraticCurveTo(2, -78, 12, -80); ctx.lineTo(90, -86); ctx.bezierCurveTo(110, -92, 128, -124, 152, -131);
+  ctx.lineTo(236, -131); ctx.bezierCurveTo(258, -128, 280, -104, 300, -86); ctx.lineTo(372, -74); ctx.quadraticCurveTo(398, -68, 399, -50); ctx.lineTo(398, -34); ctx.quadraticCurveTo(398, -24, 390, -22); ctx.closePath();
+}
+function shade() { var g = ctx.createLinearGradient(0, -131, 0, -22); g.addColorStop(0, 'rgba(255,255,255,.38)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = g; ctx.fill(); }
+function drawBody(o) {
+  var col = o.col, edge = '#1c1c1c', dark = '#14171b'; ctx.save(); ctx.translate(o.x, o.y); ctx.scale(o.s, o.s); var lw = 2 / o.s;
+  function part(pts, f, win, handle) { if (f < 0) return; var oy = -(1 - f) * 100; ctx.save(); ctx.translate(0, oy); poly(pts); fs(col, edge, lw); shade(); if (win && o.glassDoors !== false) { poly(win); fs('rgba(150,200,235,.9)', edge, lw * 0.6); ln(win[1][0] + 4, win[1][1] + 6, win[2][0] - 18, win[2][1] + 6, 'rgba(255,255,255,.6)', 2 / o.s); } if (handle) { rr(handle[0], handle[1], 16, 4, 2); fs('#d5dae0', edge, lw * 0.5); } ctx.restore(); }
+  var d1 = o.d1 === undefined ? 1 : o.d1, d2 = o.d2 === undefined ? 1 : o.d2, hd = o.hood === undefined ? 1 : o.hood, tr = o.trunk === undefined ? 1 : o.trunk;
+  shell(); fs(col, edge, lw); shade();
+  if (d1 < 1) { poly(D1); fs(dark, null); } if (d2 < 1) { poly(D2); fs(dark, null); } if (hd < 1) { poly(HOOD); fs(dark, null); } if (tr < 1) { poly(TRUNK); fs(dark, null); }
+  if (o.dashed) { ctx.restore(); return; }
+  [[85, 33], [315, 33]].forEach(function (w) { ctx.beginPath(); ctx.arc(w[0], -28, w[1], Math.PI, 0); ctx.lineTo(w[0] + w[1], -20); ctx.lineTo(w[0] - w[1], -20); ctx.closePath(); fs(dark, edge, lw * 0.6); });
+  ln(104, -24, 280, -24, 'rgba(0,0,0,.5)', 3 / o.s);
+  poly([[386, -68], [398, -62], [398, -54], [388, -56]]); fs('#fff3b0', edge, lw * 0.6); poly([[0, -66], [6, -69], [6, -56], [0, -58]]); fs('#d62d2d', edge, lw * 0.6);
+  ln(392, -40, 399, -40, 'rgba(0,0,0,.5)', 2 / o.s); ln(0, -42, 6, -42, 'rgba(0,0,0,.5)', 2 / o.s);
+  if (o.ws) { poly(WS); fs('rgba(150,200,235,.9)', edge, lw * 0.6); } else { poly(WS); fs(dark, null); }
+  part(D2, d2, WIN2, [140, -98]); part(D1, d1, WIN1, [248, -98]); part(HOOD, hd); part(TRUNK, tr);
+  poly([[266, -100], [281, -103], [284, -96], [270, -93]]); fs(col, edge, lw * 0.7);
+  if (o.wheels) [85, 315].forEach(function (x) { wheel(x, -28, 28, 0, false); });
+  if (o.gloss) { ctx.strokeStyle = 'rgba(255,255,255,' + (0.6 * o.gloss).toFixed(2) + ')'; ctx.lineWidth = 3 / o.s; ctx.beginPath(); ctx.moveTo(24, -62); ctx.lineTo(372, -60); ctx.stroke(); }
+  ctx.restore();
+}
+function bodyAt(o, clipX0, clipX1, col2) { drawBody(o); if (clipX1 > clipX0) { ctx.save(); ctx.beginPath(); ctx.rect(clipX0, 0, clipX1 - clipX0, VH); ctx.clip(); var o2 = {}; for (var k in o) o2[k] = o[k]; o2.col = col2; drawBody(o2); ctx.restore(); } }
+function surfY(lx) { if (lx < 0 || lx > 400) return 70; if (lx < 90) return 76; if (lx < 152) return lerp(86, 131, (lx - 90) / 62); if (lx < 236) return 131; if (lx < 300) return lerp(131, 86, (lx - 236) / 64); return lerp(86, 72, (lx - 300) / 100); }
+
+/* ---------- stage scenes. Each returns an array of [label, value] for the tiles ---------- */
+function sc1(p, T) {
+  var R = 72 - 30 * p, cx = 130, cy = 232, x, i;
+  poly([[cx - 40, GY], [cx, cy], [cx + 40, GY]]); fs(null, C.frame, 3);
+  circ(cx, cy, R, C.steelD, C.ink, 1.5); for (i = R - 5; i > 27; i -= 6) { ctx.beginPath(); ctx.arc(cx, cy, i, 0, 6.283); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(); }
+  circ(cx, cy, 26, C.cell, C.ink2, 1.5); for (i = 0; i < 3; i++) { var a = -T * 1.1 + i * 2.094; ln(cx, cy, cx + Math.cos(a) * 23, cy + Math.sin(a) * 23, C.ink2, 3); }
+  function wave(x) { return x < 270 || x > 440 ? 0 : 6 * (1 - (x - 270) / 170) * Math.sin((x - 270) / 25 * Math.PI); }
+  [[7, C.ink], [4.5, C.steel]].forEach(function (q) { ctx.beginPath(); ctx.moveTo(cx, cy + R); ctx.quadraticCurveTo(cx + 8, 300, cx + 70, 300); for (x = cx + 70; x <= 660; x += 4) ctx.lineTo(x, 300 + wave(x)); ctx.strokeStyle = q[1]; ctx.lineWidth = q[0]; ctx.stroke(); });
+  for (x = 0; x < 520; x += 40) { var xx = cx + 80 + ((x + T * 60) % 520); ln(xx, 298, xx + 8, 298, 'rgba(255,255,255,.5)', 1); }
+  [290, 340, 390].forEach(function (x) { roller(x, 283.5 + wave(x) * 0.2, 14, T * 3); }); [315, 365, 415].forEach(function (x) { roller(x, 316.5 + wave(x) * 0.2, 14, -T * 3); });
+  rr(486, 258, 68, 84, 5); fs(null, C.ink2, 1.5); roller(520, 281.5, 16, T * 4); roller(520, 318.5, 16, -T * 4);
+  rr(620, 230, 150, 130, 6); ctx.save(); ctx.setLineDash([6, 4]); fs(null, C.ink2, 1.5); ctx.restore(); tx('to blanking press', 695, 300, 'center', C.ink2, 12);
+  tx('Uncoiler', cx, GY + 22, 'center', C.ink, 12, true); tx('Leveler', 352, 352, 'center', C.ink, 12, true); tx('removes coil set', 352, 366, 'center', C.ink2, 10); tx('Servo roll feeder', 520, 358, 'center', C.ink, 12, true);
+  var m = 1800 * (R * R - 676) / (72 * 72 - 676);
+  return [['Coil outer diameter', Math.round(R / 72 * 1500) + ' mm'], ['Coil mass left', Math.round(m) + ' kg'], ['Strip', '0.8 mm × 1.4 m'], ['Feed length', '1200 mm per stroke']];
+}
+function sc2(p, T) {
+  var c = T * 0.9, k = Math.floor(c), f = c - k, s = f < 0.45 ? sm(f / 0.45) : f < 0.55 ? 1 : sm((1 - f) / 0.45), shift = sm(seg(f, 0.8, 0.97)), pitch = 130, dx = 330, j, i;
+  var feed = (k + shift) * pitch;
+  ctx.fillStyle = C.steel; ctx.fillRect(40, 170, dx - 55 - 40, 100); ctx.fillRect(dx - 55, 170, 770 - dx + 55, 100); ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.strokeRect(40, 170, 730, 100);
+  for (i = 0; i < 17; i++) { var xx = 40 + ((i * 45 + feed) % 730); ln(xx, 172, xx, 268, 'rgba(0,0,0,.10)', 1); }
+  for (j = 0; j < 6; j++) { if (j === 0 && f < 0.5) continue; var hx = dx + (j + shift) * pitch; if (hx > 740) continue; rr(hx - 42, 185, 84, 70, 8); fs(C.cell, C.ink2, 1); }
+  rr(dx - 55, 150, 110, 140, 6); ctx.save(); ctx.setLineDash([6, 4]); fs(s > 0.85 ? 'rgba(232,137,12,.3)' : null, C.ink, 1.5); ctx.restore(); tx('Blanking die', dx, 144, 'center', C.ink, 12, true);
+  if (f > 0.5) { var bx = lerp(dx, 620, sm(seg(f, 0.75, 0.97))), by = lerp(220, 335, sm(seg(f, 0.55, 0.75))); rr(bx - 42, by - 35, 84, 70, 8); fs(C.steel, C.ink, 1.5); }
+  var n = k % 20; rr(560, 366, 120, 8, 2); fs(C.frame, null); for (i = 0; i < n; i++) { rr(578, 364 - 3 * (i + 1), 84, 3, 1); fs(C.steel, C.ink, 0.5); }
+  tx('Blank stack', 620, 392, 'center', C.ink, 12, true); tx('Scrap skeleton to chopper', 690, 292, 'center', C.ink2, 11); tx('Strip in', 80, 292, 'center', C.ink2, 11);
+  arrow(60, 160, 120, 160, C.ink2);
+  ctx.save(); rr(14, 12, 150, 134, 6); fs(C.panel, C.line, 1); ctx.translate(22, 22); ctx.scale(0.34, 0.34); pressFrame(400, 112 + 90 * s); rr(340, 112 + 90 * s + 40, 120, 40, 3); fs(C.steelD, C.ink); ctx.fillStyle = C.steelD; ctx.fillRect(270, 298, 260, 54); ctx.restore();
+  tx('Press, side view', 89, 138, 'center', C.ink2, 10);
+  return [['Press strokes', String(k)], ['Blanks made', String(k)], ['Ram position', Math.round(s * 100) + ' % of stroke'], ['Blank size', '1.1 × 0.7 m']];
+}
+function formedBlank(d, yb) {
+  var pts = [[250, 298], [325, 298], [340, 298 + d], [460, 298 + d], [475, 298], [550, 298]]; return pts;
+}
+function strokePts(pts, dx, col, w, alpha) { ctx.save(); ctx.globalAlpha = alpha === undefined ? 1 : alpha; ctx.beginPath(); pts.forEach(function (q, i) { if (i) ctx.lineTo(q[0] + dx, q[1]); else ctx.moveTo(q[0] + dx, q[1]); }); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke(); ctx.restore(); }
+function sc3(p, T) {
+  var c = T * 0.8, f = c - Math.floor(c), yb = f < 0.4 ? lerp(262, 345, sm(f / 0.4)) : f < 0.55 ? 345 : f < 0.8 ? lerp(345, 262, sm(seg(f, 0.55, 0.8))) : 262, d = f < 0.55 ? Math.max(0, yb - 298) : 47;
+  if (f >= 0.55 && f < 0.8) d = 47;
+  pressFrame(400, yb - 100);
+  poly([[230, 372], [230, 300], [325, 300], [325, 350], [475, 350], [475, 300], [570, 300], [570, 372]]); fs(C.steelD, C.ink, 1.5);
+  rr(250, 284, 75, 12, 2); fs(C.steel, C.ink); rr(475, 284, 75, 12, 2); fs(C.steel, C.ink);
+  var sl = f >= 0.8 ? sm(seg(f, 0.8, 1)) : 0;
+  if (f < 0.8) strokePts(formedBlank(d), 0, '#d9a55b', 5); else { strokePts(formedBlank(47), sl * 260, '#d9a55b', 5, 1 - sl); strokePts(formedBlank(0), -(1 - sl) * 260, '#d9a55b', 5, sl); }
+  rr(340, yb - 60, 120, 60, 3); fs(C.steel, C.ink, 1.5); tx('Punch', 400, yb - 28, 'center', C.ink, 12, true); tx('Die cavity', 400, 366, 'center', C.ink, 11, true);
+  tx('Binder ring', 288, 278, 'center', C.ink, 11, true); tx('Binder force', 512, 278, 'center', C.ink2, 11); arrow(512, 246, 512, 282, C.ink2);
+  if (d > 4) { ln(560, 298, 560, 298 + d, C.ink, 1.5); tx('draw depth ' + Math.round(d * 1.6) + ' mm', 568, 298 + d / 2 + 4, 'left', C.ink, 12, true); }
+  return [['Draw depth', Math.round(d * 1.6) + ' mm'], ['Wall thinning', (18 * d / 47).toFixed(0) + ' %'], ['Binder force', 'held constant'], ['Panels drawn', String(Math.floor(c))]];
+}
+function sc4(p, T) {
+  var c = T * 0.8, k = Math.floor(c), f = c - k, s = f < 0.4 ? sm(f / 0.4) : f < 0.5 ? 1 : f < 0.8 ? sm((0.8 - f) / 0.3) : 0, ramY = 118 + 80 * s - 0;
+  pressFrame(400, ramY);
+  var full = [[240, 298], [325, 298], [340, 345], [460, 345], [475, 298], [560, 298]], main = [[300, 298], [325, 298], [340, 345], [460, 345], [475, 298], [500, 298]];
+  poly([[200, 372], [200, 306], [240, 306], [325, 306], [340, 352], [460, 352], [475, 306], [560, 306], [600, 306], [600, 372]]); fs(C.steelD, C.ink, 1.5);
+  var sl = f >= 0.8 ? sm(seg(f, 0.8, 1)) : 0;
+  if (f < 0.5) strokePts(full, 0, '#d9a55b', 5);
+  else if (f < 0.8) { strokePts(main, 0, '#d9a55b', 5); var g = (f - 0.5), fa = 1 - seg(f, 0.65, 0.8); [[[[240, 298], [300, 298]], -1], [[[500, 298], [560, 298]], 1]].forEach(function (q) { ctx.save(); ctx.translate(q[1] * g * 120, g * g * 700); ctx.rotate(q[1] * g * 1.2); ctx.globalAlpha = fa; strokePts(q[0], 0, '#d9a55b', 5); ctx.restore(); }); }
+  else { strokePts(main, sl * 260, '#d9a55b', 5, 1 - sl); strokePts(full, -(1 - sl) * 260, '#d9a55b', 5, sl); }
+  rr(292, ramY + 40, 16, 60, 2); fs(C.steel, C.ink, 1.5); rr(492, ramY + 40, 16, 60, 2); fs(C.steel, C.ink, 1.5); rr(312, ramY + 40, 176, 24, 2); fs(C.steelD, C.ink, 1);
+  tx('Trim blade', 300, ramY + 114, 'center', C.ink, 11, true); tx('Trim blade', 500, ramY + 114, 'center', C.ink, 11, true); tx('Lower trim die', 400, 366, 'center', C.ink, 11, true);
+  if (f >= 0.5 && f < 0.8) tx('scrap falls to chute', 640, 360, 'center', C.ink2, 11);
+  return [['Panels trimmed', String(k + (f > 0.5 ? 1 : 0))], ['Scrap pieces', String(2 * (k + (f > 0.5 ? 1 : 0)))], ['Cut edge burr', 'below 0.1 mm'], ['Blade position', Math.round(s * 100) + ' % of stroke']];
+}
+function sc5(p, T) {
+  var spots = [215, 229, 291, 369, 431, 509, 571, 585], i, done = 0;
+  var fyAt = function (x) { return x < 300 ? 300 : x < 322 ? lerp(300, 288, (x - 300) / 22) : x <= 478 ? 288 : x < 500 ? lerp(288, 300, (x - 478) / 22) : 300; };
+  var bots = [[110, 352, false, [190, 262], [0, 1, 2], 120], [690, 352, false, [610, 262], [5, 6, 7], 120], [400, 56, true, [400, 150], [3, 4], 125]];
+  var close = sm(seg(p, 0, 0.06)) - sm(seg(p, 0.96, 1));
+  tx('Floor sub-assembly welding cell', 20, 26, 'left', C.ink, 12, true);
+  // fixture table, legs, towers and pneumatic clamps
+  [170, 400, 630].forEach(function (x) { ctx.fillStyle = C.frame; ctx.fillRect(x - 9, 344, 18, 28); ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.strokeRect(x - 9, 344, 18, 28); });
+  rr(150, 330, 500, 14, 3); fs(C.steelD, C.ink, 1.5);
+  [190, 330, 470, 610].forEach(function (x) {
+    rr(x - 14, 308, 28, 22, 2); fs(C.frame, C.ink, 1.5); rr(x + 8, 292, 14, 18, 3); fs('#3a8fd0', C.ink, 1.5);
+    var ang = lerp(Math.PI + 1.15, Math.PI - 0.3, close), px = x + 15, py = 296, qx = px + Math.cos(ang) * 36, qy = py + Math.sin(ang) * 36;
+    link(px, py, qx, qy, 4, 3, '#3a8fd0'); circ(px, py, 4, '#d5dae0', C.ink, 1.5); circ(qx, qy, 4.5, '#222', C.ink, 1);
+  });
+  // floor panel with tunnel
+  var fl = [[185, 300], [300, 300], [322, 288], [478, 288], [500, 300], [615, 300]];
+  strokePts(fl, 0, C.ink, 9); strokePts(fl, 0, C.biw, 6); [235, 345, 455, 565].forEach(function (x) { ln(x, fyAt(x) + 2, x, fyAt(x) + 6, C.ink, 1.5); });
+  // cross members (hat sections) and end brackets
+  [[260, 300], [400, 288], [540, 300]].forEach(function (h) { var cx = h[0], fy = h[1], pts = [[cx - 38, fy - 4], [cx - 25, fy - 4], [cx - 17, fy - 30], [cx + 17, fy - 30], [cx + 25, fy - 4], [cx + 38, fy - 4]]; strokePts(pts, 0, C.ink, 8); strokePts(pts, 0, C.steel, 5); });
+  [[[198, 268], [205, 296], [226, 296]], [[574, 296], [598, 296], [592, 268]]].forEach(function (pts) { strokePts(pts, 0, C.ink, 8); strokePts(pts, 0, '#aab3bb', 5); });
+  // welds and robots
+  bots.forEach(function (r) {
+    var n = r[4].length, idx = Math.min(n - 1, Math.floor(p * n)), fr = p * n - Math.floor(p * n); if (p >= 1) { idx = n - 1; fr = 1; }
+    var spot = spots[r[4][idx]], w = fr < 0.25 ? sm(fr / 0.25) : fr > 0.75 ? sm((1 - fr) / 0.25) : 1, sy = fyAt(spot) - 10;
+    var tip = robot(r[0], r[1], lerp(r[3][0], spot, w), lerp(r[3][1], sy, w), r[5], r[2]); if (fr > 0.3 && fr < 0.7 && p < 1) spark(tip[0], tip[1], T, 7);
+    r[4].forEach(function (si, k) { if (k < idx || p >= 1 || (k === idx && fr > 0.5)) { done++; circ(spot === spots[si] ? spots[si] : spots[si], fyAt(spots[si]) - 6, 3.6, '#ffd24a', '#7a5a00', 1); } });
+  });
+  tx('Fixture table: locating towers and pneumatic clamps', 400, 392, 'center', C.ink, 11, true); tx('Cross member', 260, 258, 'center', C.ink, 10); tx('Cross member', 540, 258, 'center', C.ink, 10); tx('Floor panel', 660, 292, 'left', C.ink, 10); tx('Tunnel', 400, 316, 'center', C.ink2, 10);
+  if (p >= 0.98) tx('Finished floor sub-assembly', 400, 70, 'center', C.ink, 12, true);
+  return [['Weld spots', done + ' / 8 (shown)'], ['Robots', '3 working together'], ['Fixture clamps', close > 0.5 ? 'closed' : 'open'], ['Spots per car', 'about 4 000 to 5 000']];
+}
+function topPath() {
+  ctx.beginPath(); ctx.moveTo(200, 198); ctx.bezierCurveTo(198, 176, 214, 163, 242, 161); ctx.lineTo(520, 161); ctx.bezierCurveTo(566, 162, 598, 178, 606, 206); ctx.lineTo(606, 234);
+  ctx.bezierCurveTo(598, 262, 566, 278, 520, 279); ctx.lineTo(242, 279); ctx.bezierCurveTo(214, 277, 198, 264, 200, 242); ctx.closePath();
+}
+function sc6(p, T) {
+  var i, N = 32, pp = seg(p, 0.45, 1), act = Math.min(N - 1, Math.floor(pp * N)), side = seg(p, 0, 0.2), roof = seg(p, 0.2, 0.4), close = sm(seg(p, 0.15, 0.22)) - sm(seg(p, 0.96, 1));
+  rr(150, 180, 500, 80, 3); ctx.fillStyle = C.floor; ctx.fill(); ln(150, 180, 650, 180, C.frame, 2); ln(150, 260, 650, 260, C.frame, 2); tx('Skid conveyor', 660, 224, 'left', C.ink2, 10);
+  // underbody (floor) with tunnel, cross members and rails
+  topPath(); fs('#69747f', C.ink, 2.5);
+  ctx.save(); topPath(); ctx.clip(); ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(520, 150, 100, 140); ctx.fillRect(195, 150, 50, 140); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(285, 211, 235, 18);
+  [300, 380, 450].forEach(function (x) { ln(x, 166, x, 274, 'rgba(255,255,255,.28)', 4); ln(x, 166, x, 274, 'rgba(0,0,0,.35)', 1); }); [190, 250].forEach(function (y) { ln(520, y, 604, y, 'rgba(255,255,255,.3)', 4); ln(200, y + 4 * (y < 220 ? 1 : -1), 250, y + 4 * (y < 220 ? 1 : -1), 'rgba(255,255,255,.3)', 4); });
+  var gr = ctx.createLinearGradient(0, 161, 0, 279); gr.addColorStop(0, 'rgba(255,255,255,.22)'); gr.addColorStop(0.5, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,.2)'); ctx.fillStyle = gr; ctx.fillRect(190, 150, 430, 140); ctx.restore();
+  tx('floor', 400, 224, 'center', 'rgba(255,255,255,.55)', 10); tx('engine bay', 562, 224, 'center', 'rgba(255,255,255,.5)', 9); tx('trunk', 222, 224, 'center', 'rgba(255,255,255,.5)', 9);
+  // body sides slide in from both sides
+  var off = (1 - sm(side)) * 50;
+  var sideP = [[212, 184], [222, 166], [245, 161], [540, 161], [580, 170], [602, 198], [586, 194], [545, 186], [250, 187]];
+  [[-1, 0], [1, 1]].forEach(function (q) { ctx.save(); if (q[1]) { ctx.translate(0, 440); ctx.scale(1, -1); } ctx.translate(0, q[0] * off * (q[1] ? -1 : 1) * 0 - off); poly(sideP); fs(C.steel, C.ink, 1.8); ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1.2; [335, 425].forEach(function (x) { ctx.beginPath(); ctx.moveTo(x, 161); ctx.lineTo(x, 187); ctx.stroke(); }); ctx.restore(); });
+  tx('body side', 400, 124 - off, 'center', C.ink2, 10); tx('body side', 400, 322 + off, 'center', C.ink2, 10);
+  // clamps of the framing fixture
+  [250, 400, 550].forEach(function (x) { [[0, 148, 1], [1, 292, -1]].forEach(function (q) { var py = q[1] + q[2] * 0, tipy = lerp(q[1] + (q[0] ? -2 : 2), q[0] ? 281 : 159 + 0, close); rr(x - 12, q[0] ? 292 : 136, 24, 12, 2); fs('#3a8fd0', C.ink, 1.2); ctx.beginPath(); ctx.moveTo(x, q[0] ? 292 : 148); ctx.lineTo(x, q[0] ? lerp(294, 282, close) : lerp(146, 158, close)); ctx.strokeStyle = C.ink; ctx.lineWidth = 4; ctx.stroke(); circ(x, q[0] ? lerp(294, 282, close) : lerp(146, 158, close), 4, '#d5dae0', C.ink, 1.2); }); });
+  // roof with windshield and rear window openings
+  if (roof > 0) {
+    var k = lerp(1.18, 1, sm(roof)); ctx.save(); ctx.globalAlpha = Math.min(1, sm(roof) * 1.2); ctx.translate(400, 220); ctx.scale(k, k); ctx.translate(-400, -220);
+    poly([[255, 198], [300, 188], [470, 188], [535, 178], [535, 262], [470, 252], [300, 252], [255, 242]]); fs('#b4bec8', C.ink, 2);
+    poly([[472, 193], [528, 183], [528, 257], [472, 247]]); fs('rgba(20,24,28,.75)', C.ink, 1.2); poly([[262, 203], [298, 194], [298, 246], [262, 237]]); fs('rgba(20,24,28,.75)', C.ink, 1.2);
+    rr(318, 196, 140, 48, 14); fs('rgba(255,255,255,.28)', 'rgba(0,0,0,.25)', 1); ctx.restore(); if (roof < 1) tx('roof', 390, 222, 'center', C.ink, 11, true);
+  }
+  // weld dots and robots
+  var pos = 232 + act * (330 / (N - 1)), bots = []; for (var r = 0; r < 4; r++) { bots.push([250 + r * 100, 60, -1]); bots.push([250 + r * 100, 372, 1]); }
+  for (i = 0; i < N; i++) { if (pp > 0 && (i < act || p >= 1)) { var x = 232 + i * (330 / (N - 1)); circ(x, 184, 2.6, '#ffd24a', '#7a5a00', 1); circ(x, 256, 2.6, '#ffd24a', '#7a5a00', 1); } }
+  bots.forEach(function (b) {
+    var near = Math.abs(b[0] - pos) < 70 && pp > 0 && p < 1, tgt = near ? [pos, b[2] < 0 ? 184 : 256] : [b[0], b[2] < 0 ? 122 : 322];
+    var tip = robot(b[0], b[1], tgt[0], tgt[1], b[2] < 0 ? 62 : 80, b[2] < 0, '#e8890c'); if (near) spark(tip[0], tip[1], T + b[0], 5);
+  });
+  tx('Framing station, top view: robots weld both sides at once', 400, 28, 'center', C.ink, 12, true);
+  return [['Body parts', side < 1 ? 'clamping sides' : roof < 1 ? 'roof placed' : 'welded'], ['Weld spots', Math.round(pp * N) + ' / ' + N + ' (shown)'], ['Robots', '8 (4 per side)'], ['Geometry', 'laser-checked']];
+}
+function sc7(p, T) {
+  var s = 1.4, x0 = 120, parts = [['d1', 0, 0.25, 428], ['d2', 0.25, 0.5, 302], ['hood', 0.5, 0.75, 603], ['trunk', 0.75, 1, 190]], o = { x: x0, y: GY, s: s, col: C.biw, wheels: false }, act = -1, n = 0;
+  ctx.fillStyle = C.floor; ctx.fillRect(0, GY, VW, VH - GY); ln(0, GY, VW, GY, C.frame, 3); ln(40, 36, 760, 36, C.frame, 5);
+  parts.forEach(function (q, i) { var f = sm(seg(p, q[1], q[2])); if (p < q[1]) f = -1; o[q[0]] = f; if (f >= 0 && f < 1) act = i; if (f >= 1) n++; });
+  drawBody(o);
+  parts.forEach(function (q, i) {
+    var f = o[q[0]]; if (f >= 0 && f < 1) { var oy = -(1 - f) * 100 * s, cx = q[3]; ln(cx, 36, cx, GY - 130 * s + oy + (i === 2 ? 60 : 0), C.ink2, 2); rr(cx - 10, 32, 20, 8, 2); fs(C.frame, C.ink); }
+    if (f >= 1 && p < q[2] + 0.04) { var hx = [505, 361, 535, 250][i]; ctx.save(); ctx.globalAlpha = 1 - seg(p, q[2], q[2] + 0.04); circ(hx, GY - 70 * s, 14, null, '#ffd24a', 3); ctx.restore(); }
+  });
+  if (act >= 0) { var cx2 = parts[act][3], tipy = GY - 90 * s; person(cx2 - 85, GY, 100, cx2 - 30, tipy - 10); person(cx2 + 85, GY, 100, cx2 + 30, tipy - 10); tx('operators guide the part on a hoist', cx2, GY + 30, 'center', C.ink2, 12); }
+  tx('Body-in-white on conveyor, side view', 400, 24, 'center', C.ink, 12, true);
+  return [['Parts fitted', n + ' / 4'], ['Now fitting', act < 0 ? (n === 4 ? 'done' : 'start') : ['front door', 'rear door', 'hood', 'trunk lid'][act]], ['Hinge bolts', '2 per door and hood'], ['Gap & flush', 'about 1 mm']];
+}
+function sc8(p, T) {
+  var s = 0.62, tl = 110, tr = 690, i;
+  ln(60, 56, 740, 56, C.frame, 5); ctx.fillStyle = C.floor; ctx.fillRect(0, GY, VW, VH - GY);
+  var down = sm(seg(p, 0.12, 0.3)), up = sm(seg(p, 0.72, 0.9)), dip = down - up, x = lerp(150, 560, seg(p, 0.05, 0.95)), cyb = lerp(218, 322, dip), rot = 0.5 * Math.sin(Math.PI * seg(p, 0.1, 0.3)) - 0.5 * Math.sin(Math.PI * seg(p, 0.7, 0.9));
+  var coat = sm(seg(p, 0.35, 0.65)), colr = coat < 0.5 ? C.biw : '#2c3036';
+  rr(tl, 260, tr - tl, 90, 4); fs('rgba(40,44,52,.88)', C.ink, 2);
+  for (i = 0; i < 12; i++) { var bxx = tl + 20 + hash(i * 3.1) * (tr - tl - 40), byy = 340 - ((T * 22 + i * 37) % 70); circ(bxx, byy, 2 + hash(i) * 2, 'rgba(255,255,255,.25)'); }
+  ln(tl, 260, tr, 260, '#7d8794', 2); rr(tl - 10, 252, 8, 98, 2); fs(C.steelD, C.ink); rr(tr + 2, 252, 8, 98, 2); fs(C.steelD, C.ink); tx('anode', tl - 6, 246, 'center', C.ink2, 10); tx('anode', tr + 6, 246, 'center', C.ink2, 10);
+  ctx.save(); ctx.translate(x + 110 * s * 0 + 0, cyb); ctx.rotate(rot); drawBody({ x: -200 * s, y: 45 * s, s: s, col: colr, d1: 1, d2: 1, glassDoors: false, wheels: false, ws: false, dashed: false }); ctx.restore();
+  ln(x, 56, x - 6, cyb - 38, C.ink2, 2);
+  tx('ED tank, DC voltage between body (cathode) and anodes', 400, 380, 'center', C.ink, 12); tx('E-coat paint bath', 400, 338, 'center', 'rgba(255,255,255,.7)', 12);
+  tx('Pitch-roll dip conveyor', 400, 48, 'center', C.ink2, 11);
+  return [['Film thickness', (20 * sm(seg(p, 0.3, 0.7))).toFixed(0) + ' µm'], ['Bath voltage', 'about 250 to 400 V'], ['Immersion', dip > 0.9 ? 'fully submerged' : dip > 0.05 ? 'entering or leaving' : 'above tank'], ['Cure oven', 'about 175 °C, 20 min']];
+}
+function spray(pass1, pass2, T, label, colA, colB, colC, tiles) {
+  var s = 1.4, x0 = 120, u1 = pass1, u2 = pass2, i;
+  ctx.fillStyle = C.floor; ctx.fillRect(0, GY, VW, VH - GY); ln(0, GY, VW, GY, C.frame, 3);
+  ctx.save(); ctx.setLineDash([8, 6]); rr(60, 20, 680, 352, 6); fs(null, C.ink2, 1.2); ctx.restore(); tx('Paint booth', 70, 36, 'left', C.ink2, 11, true);
+  for (i = 0; i < 6; i++) { var ax = 110 + i * 120, ay = 52 + ((T * 30 + i * 20) % 40); arrow(ax, ay, ax, ay + 14, 'rgba(120,160,200,.55)'); }
+  rr(110, 354, 580, 8, 2); fs(C.frame, null);
+  var o = { x: x0, y: GY - 6, s: s, col: colA, wheels: false, glassDoors: false, ws: false };
+  drawBody(o);
+  [[u1, colB], [u2, colC]].forEach(function (q) { if (q[0] > 0 && q[1]) { var o2 = {}; for (var k in o) o2[k] = o[k]; o2.col = q[1]; ctx.save(); ctx.beginPath(); ctx.rect(x0 - 10, 0, 580 * q[0] + 10, VH); ctx.clip(); drawBody(o2); ctx.restore(); } });
+  var u = pass2 > 0 ? pass2 : pass1, active = u > 0 && u < 1, xs = x0 + 560 * u, ly = (xs - x0) / s, topY = GY - 6 - surfY(ln0(ly)) * s - 26;
+  ln(100, 46, 700, 46, C.frame, 6);
+  var t1 = robot(xs, 46, xs, topY, 150, true, '#e8890c', 'bell'), t2 = robot(xs - 80, 372, xs - 10, 300, 90, false, '#e8890c', 'bell');
+  if (active) { [[t1, [xs, topY + 26]], [t2, [xs, 318]]].forEach(function (q) { ctx.save(); ctx.globalAlpha = 0.45; poly([[q[0][0], q[0][1]], [q[1][0] - 14, q[1][1]], [q[1][0] + 14, q[1][1]]]); ctx.fillStyle = (pass2 > 0 ? colC : colB) === '#2c3036' ? '#bbb' : (pass2 > 0 ? colC : colB); ctx.fill(); ctx.restore(); }); }
+  tx(label, 400, 392, 'center', C.ink, 12, true);
+  return tiles;
+}
+function ln0(v) { return v; }
+function sc9(p, T) {
+  var u = seg(p, 0.05, 0.95); return spray(u, 0, T, 'Robots on a rail and floor robots coat the roof, hood and sides', '#2c3036', '#b9bdc2', null, [['Primer film', Math.round(30 * u) + ' µm'], ['Coverage', Math.round(u * 100) + ' %'], ['Atomizer', 'rotary bell, electrostatic'], ['Booth air', 'down-draft, filtered']]);
+}
+function sc10(p, T) {
+  var u1 = seg(p, 0.02, 0.48), u2 = seg(p, 0.52, 0.98), pc = C.paint;
+  var out = spray(u1, u2, T, p < 0.5 ? 'Base coat (colour)' : 'Clear coat (gloss and protection)', '#b9bdc2', pc, pc, [['Base coat film', Math.round(15 * u1) + ' µm'], ['Clear coat film', Math.round(40 * u2) + ' µm'], ['Coverage', Math.round((p < 0.5 ? u1 : u2) * 100) + ' %'], ['Bake oven', 'about 140 °C']]);
+  if (u2 > 0) { ctx.save(); ctx.beginPath(); ctx.rect(110, 0, 580 * u2 + 10, VH); ctx.clip(); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(135, GY - 6 - 62 * 1.4); ctx.lineTo(655, GY - 6 - 60 * 1.4); ctx.stroke(); ctx.restore(); }
+  return out;
+}
+function sc11(p, T) {
+  var s = 1.1, x0 = 50, q1 = seg(p, 0.02, 0.5), pts = [[20, -46], [90, -42], [150, -44], [210, -40], [262, -54], [280, -92], [300, -70], [360, -46]], i;
+  ctx.fillStyle = C.floor; ctx.fillRect(0, GY, VW, VH - GY); ln(0, GY, VW, GY, C.frame, 3);
+  drawBody({ x: x0, y: GY - 28, s: s, col: C.paint, d1: -1, d2: -1, wheels: false, ws: false, gloss: 1 });
+  var total = 0, lens = []; for (i = 1; i < pts.length; i++) { lens.push(Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); total += lens[i - 1]; }
+  var need = q1 * total; ctx.save(); ctx.translate(x0, GY - 28); ctx.scale(s, s); ctx.strokeStyle = '#f0b400'; ctx.lineWidth = 3.5 / s; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (i = 1; i < pts.length; i++) { if (need >= lens[i - 1]) { ctx.lineTo(pts[i][0], pts[i][1]); need -= lens[i - 1]; } else { var r = need / lens[i - 1]; ctx.lineTo(lerp(pts[i - 1][0], pts[i][0], r), lerp(pts[i - 1][1], pts[i][1], r)); break; } } ctx.stroke(); ctx.restore();
+  var px = x0 + (lerp(20, 360, q1)) * s; if (q1 < 1) person(x0 + 215 * s, GY - 28, 105, px - 8, GY - 28 - 45 * s);
+  tx('Wire harness routed through the open door frames (doors are off)', 20, 22, 'left', C.ink, 12, true);
+  // windshield callout
+  var bx = 560, by = 40, bw = 220, bh = 200; rr(bx, by, bw, bh, 8); fs(C.panel, C.line, 1); tx('Windshield opening, front view', bx + bw / 2, by + 16, 'center', C.ink, 11, true);
+  var wp = [[bx + 40, by + 150], [bx + 70, by + 50], [bx + 150, by + 50], [bx + 180, by + 150]]; poly(wp); fs(C.cell, C.paint, 3);
+  var q2 = seg(p, 0.5, 0.8), q3 = seg(p, 0.8, 0.98), loop = wp.concat([wp[0]]), pl = [], tl = 0; for (i = 1; i < loop.length; i++) { pl.push(Math.hypot(loop[i][0] - loop[i - 1][0], loop[i][1] - loop[i - 1][1])); tl += pl[i - 1]; }
+  var nd = q2 * tl, rtip = [wp[0][0], wp[0][1]]; ctx.strokeStyle = '#111'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(loop[0][0], loop[0][1]);
+  for (i = 1; i < loop.length; i++) { if (nd >= pl[i - 1]) { ctx.lineTo(loop[i][0], loop[i][1]); nd -= pl[i - 1]; rtip = loop[i]; } else { var rr_ = nd / pl[i - 1]; rtip = [lerp(loop[i - 1][0], loop[i][0], rr_), lerp(loop[i - 1][1], loop[i][1], rr_)]; ctx.lineTo(rtip[0], rtip[1]); break; } } ctx.stroke();
+  if (p >= 0.5 && q2 < 1) { robot(bx + bw - 40, by + 26, rtip[0], rtip[1], 80, false, '#e8890c'); circ(rtip[0], rtip[1], 3, '#111'); }
+  if (q3 > 0) { var gy2 = lerp(-70, 0, sm(q3)); ctx.save(); ctx.globalAlpha = 0.9; poly(wp, 0, gy2); fs('rgba(170,210,240,.75)', '#4a7fa8', 2); ctx.restore(); [[bx + 90, by + 70], [bx + 130, by + 70]].forEach(function (c) { circ(c[0], c[1] + gy2, 5, '#222'); }); if (q3 < 1) tx('glass robot with vacuum cups', bx + bw / 2, by + bh - 8, 'center', C.ink2, 10); }
+  else if (p < 0.5) tx('waiting for harness', bx + bw / 2, by + bh - 8, 'center', C.ink2, 10); else tx('sealant bead (urethane)', bx + bw / 2, by + bh - 8, 'center', C.ink2, 10);
+  return [['Harness routed', Math.round(q1 * 100) + ' %'], ['Sealant bead', Math.round(q2 * 100) + ' %'], ['Glass', q3 >= 1 ? 'seated' : q3 > 0 ? 'placing' : 'waiting'], ['Connectors', q1 >= 1 ? 'seated' : 'checking']];
+}
+function sc12(p, T) {
+  var s = 1.15, x0 = 130, gy = 215, lift = sm(seg(p, 0.1, 0.65)), dy = (1 - lift) * 85, i;
+  ctx.fillStyle = C.floor; ctx.fillRect(0, GY, VW, VH - GY); ln(0, GY, VW, GY, C.frame, 3); ln(60, 28, 740, 28, C.frame, 6);
+  drawBody({ x: x0, y: gy, s: s, col: C.paint, d1: -1, d2: -1, wheels: false, ws: true, gloss: 0 });
+  [x0 + 150 * s, x0 + 260 * s].forEach(function (x) { ln(x, 28, x, gy - 128 * s + 4, C.ink2, 3); rr(x - 10, 24, 20, 8, 2); fs(C.frame, C.ink); });
+  var sub = 200 + dy;
+  ln(300, 340, 460, sub + 20, C.ink2, 3); ln(460, 340, 300, sub + 20, C.ink2, 3); rr(230, 340, 290, 18, 4); fs('#4a5560', C.ink, 1.5); circ(260, 366, 8, '#222'); circ(490, 366, 8, '#222');
+  rr(240, sub + 14, 270, 10, 3); fs('#4a5560', C.ink, 1.5);
+  ctx.save(); ctx.globalAlpha = 0.95; rr(262, sub - 48, 80, 52, 6); fs('#7b8792', C.ink, 1.5); rr(340, sub - 66, 120, 72, 8); fs('#9aa5af', C.ink, 1.5); for (i = 0; i < 4; i++) rr(352 + i * 26, sub - 80, 14, 16, 2), fs('#6b7580', C.ink, 1); ctx.restore();
+  tx('Gearbox', 302, sub - 20, 'center', '#fff', 11, true); tx('Engine', 400, sub - 28, 'center', '#fff', 11, true); tx('Subframe', 375, sub + 40, 'center', C.ink, 11, true); tx('AGV lift', 375, 380, 'center', C.ink2, 11, true);
+  var done = 0; if (lift >= 1) { var tp = seg(p, 0.7, 1); [[258, 198], [496, 198], [258, 214], [496, 214]].forEach(function (b, k) { var on = tp > k * 0.22; if (on) done++; circ(b[0], b[1] + (k > 1 ? 0 : 0) - (k > 1 ? 0 : 0), 6, on ? '#2e9e44' : '#d9a400', '#000', 1); }); ln(258, 160, 258, 180, C.ink2, 3); rr(248, 150, 20, 14, 2); fs('#e8890c', C.ink); ln(496, 160, 496, 180, C.ink2, 3); rr(486, 150, 20, 14, 2); fs('#e8890c', C.ink); tx('nutrunners', 377, 148, 'center', C.ink2, 11); }
+  tx('Body on overhead carrier, powertrain on AGV (side view, see-through)', 400, 50, 'center', C.ink, 12, true);
+  return [['Docking gap', Math.round(dy) + ' mm'], ['Bolts tightened', Math.min(4, done) + ' / 4'], ['Torque', done > 0 ? 'OK, stored on server' : 'waiting'], ['Powertrain', 'engine, gearbox, subframe']];
+}
+function sc13(p, T) {
+  var s = 1.4, x0 = 120, qs = [seg(p, 0, 0.15), seg(p, 0.15, 0.3)], qw = [seg(p, 0.35, 0.65), seg(p, 0.65, 0.95)], i, seatsDone = 0, wDone = 0;
+  ctx.fillStyle = C.floor; ctx.fillRect(0, GY, VW, VH - GY); ln(0, GY, VW, GY, C.frame, 3); ln(60, 30, 740, 30, C.frame, 6);
+  drawBody({ x: x0, y: GY, s: s, col: C.paint, d1: -1, d2: -1, wheels: false, ws: true, gloss: 1 });
+  [[110, 0], [210, 1]].forEach(function (a) { var q = qs[a[1]], f = sm(q), sx = x0 + a[0] * s, sy = GY - 32 * s - (1 - f) * 190; if (p < a[1] * 0.15) return; ln(sx, 30, sx, sy - 52, C.ink2, 2); rr(sx - 8, 26, 16, 8, 2); fs(C.frame, C.ink); rr(sx - 22, sy - 16, 50, 16, 3); fs('#3a4047', C.ink, 1); poly([[sx - 22, sy - 16], [sx - 32, sy - 64], [sx - 18, sy - 64], [sx - 8, sy - 16]]); fs('#3a4047', C.ink, 1); rr(sx - 28, sy - 78, 14, 14, 3); fs('#3a4047', C.ink, 1); if (q >= 1) seatsDone++; });
+  [[85, 0], [315, 1]].forEach(function (a) {
+    var q = qw[a[1]], hx = x0 + a[0] * s, hy = GY - 28 * s, r = 28 * s, mv = sm(seg(q, 0, 0.7)), tight = seg(q, 0.7, 1), wx = lerp(742 - a[1] * 0, hx, mv), wy = lerp(GY - r, hy, mv);
+    if (p < 0.35 + a[1] * 0.3) { wheel(742 - 30 * a[1] * 0 + (a[1] ? 0 : 0), GY - r, r * 0.9, 0, false); return; }
+    if (q < 0.7) ln(wx + r + 8, wy - r - 8, wx + r + 60, wy - r - 50, C.ink2, 3);
+    wheel(wx, wy, r, tight * 12.5, true); if (q >= 0.7 && q < 1) { rr(wx + r * 0.2, wy - 6, 60, 12, 3); fs('#e8890c', C.ink); spark(wx + r * 0.36, wy, T, 3); } if (q >= 1) { wDone++; }
+  });
+  if (p < 0.65) { ctx.save(); ctx.translate(0, 0); rr(690, GY - 14, 100, 14, 3); fs(C.frame, null); ctx.restore(); }
+  tx('Seats lowered through the door opening, wheels lifted to the hub (doors fitted later)', 20, 24, 'left', C.ink, 12, true);
+  return [['Seats installed', seatsDone + ' / 2 shown'], ['Wheels mounted', wDone + ' / 2 (near side)'], ['Wheel nuts', '5 per wheel, star pattern'], ['Nut torque', wDone > 0 ? 'about 110 Nm, OK' : 'pending']];
+}
+var SCENES = [sc1, sc2, sc3, sc4, sc5, sc6, sc7, sc8, sc9, sc10, sc11, sc12, sc13];
+
+/* ---------- DOM ---------- */
+function buildStatic() {
+  var h = '<label class="shopbtn"><input type="radio" name="shop" value="all" checked>Whole plant<small>all 13 stages</small></label>';
+  SHOPS.forEach(function (s, k) { h += '<label class="shopbtn"><input type="radio" name="shop" value="' + k + '"><span><i style="background:var(' + s.c + ')"></i>' + s.n + '</span><small>' + s.s + '</small></label>'; });
+  $('#shops').innerHTML = h;
+  var st = '', k;
+  for (k = 0; k < 4; k++) { var r = shopRange(k); st += '<div class="grp"><h3 style="color:var(' + SHOPS[k].c + ')"><i style="background:var(' + SHOPS[k].c + ')"></i>' + SHOPS[k].n + '</h3><div class="chips">'; for (var i = r[0]; i < r[1]; i++) st += '<button type="button" class="sb" data-i="' + i + '"><em>' + (i + 1) + '</em>' + ST[i].sh + '</button>'; st += '</div></div>'; }
+  $('#strip').innerHTML = st;
+}
+function updateDom(si, tiles) {
+  var s = ST[si], col = C.shop[s.shop];
+  if (si !== lastStage) {
+    lastStage = si;
+    $('#stTitle').textContent = (si + 1) + '. ' + s.n; $('#stSub').textContent = SHOPS[s.shop].n;
+    var h = '<span class="tag" style="background:' + col + ';color:var(--on)">' + SHOPS[s.shop].n + ' · stage ' + (si + 1) + ' of ' + NS + '</span><h2>' + s.n + '</h2><p class="t">' + s.t + '</p>';
+    h += '<div class="io"><div><b>In</b>' + s.i + '</div><div class="ar">→</div><div><b>Out</b>' + s.o + '</div></div>';
+    h += '<dl class="spec"><dt>Equipment</dt><dd>' + s.eq + '</dd><dt>Automation</dt><dd>' + s.au + '</dd><dt>Typical cycle</dt><dd>' + s.ct + '</dd><dt>Quality check</dt><dd>' + s.qc + '</dd></dl>';
+    if (s.tie) h += '<p class="note"><b>Link:</b> ' + s.tie + '</p>';
+    h += '<p class="note">Cycle times, film thicknesses and forces are typical teaching values and differ from plant to plant.</p>';
+    $('#info').innerHTML = h;
+    Array.prototype.forEach.call(document.querySelectorAll('.sb'), function (b) { var i = +b.getAttribute('data-i'); b.className = 'sb' + (i === si ? ' cur' : i < si ? ' done' : ''); b.style.background = i === si ? col : ''; });
+  }
+  $('#tiles').innerHTML = tiles.map(function (t) { return '<div class="tile"><span>' + t[0] + '</span><b>' + t[1] + '</b></div>'; }).join('');
+  $('#tlabel').textContent = 'Stage ' + (si + 1) + '/' + NS;
+}
+function prep() {
+  var cv = $('#scene'), r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1, W = Math.max(10, r.width), H = Math.max(10, r.height);
+  if (cv.width !== Math.round(W * d) || cv.height !== Math.round(H * d)) { cv.width = Math.round(W * d); cv.height = Math.round(H * d); }
+  ctx = cv.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0); return [W, H];
+}
+function render(now) {
+  if (!C) readColors(); C.paint = $('#paint').value;
+  var wh = prep(), W = wh[0], H = wh[1], sc = Math.min(W / VW, H / VH), si = clamp(Math.floor(state.t / DUR), 0, NS - 1), p = clamp(state.t / DUR - si, 0, 1);
+  ctx.fillStyle = C.cell; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate((W - VW * sc) / 2, (H - VH * sc) / 2); ctx.scale(sc, sc); ctx.beginPath(); ctx.rect(0, 0, VW, VH); ctx.clip(); ctx.fillStyle = C.cell; ctx.fillRect(0, 0, VW, VH);
+  var tiles = SCENES[si](p, state.t); ctx.restore();
+  if (now - lastDom > 100 || si !== lastStage) { lastDom = now; updateDom(si, tiles); }
+  var sv = Math.round(state.t / (NS * DUR) * 1000); if (+$('#scrub').value !== sv) $('#scrub').value = sv;
+}
+function frame(now) {
+  var dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (state.playing) {
+    state.t += dt * state.speed; var r = state.scope === 'all' ? [0, NS] : shopRange(state.scope), a = r[0] * DUR, b = r[1] * DUR;
+    if (state.t >= b) state.t = a + (state.t - b); if (state.t < a) state.t = a;
+  }
+  render(now); requestAnimationFrame(frame);
+}
+function setScope(v) { state.scope = v; var el = document.querySelector('input[name=shop][value="' + v + '"]'); if (el) el.checked = true; }
+$('#shops').addEventListener('change', function (e) { var v = e.target.value; if (v === 'all') { setScope('all'); } else { setScope(+v); state.t = shopRange(+v)[0] * DUR; } state.playing = true; $('#play').textContent = 'Pause'; lastStage = -1; });
+$('#strip').addEventListener('click', function (e) { var b = e.target.closest('.sb'); if (!b) return; var i = +b.getAttribute('data-i'); state.t = i * DUR + 0.5; state.playing = false; $('#play').textContent = 'Play'; if (state.scope !== 'all' && ST[i].shop !== state.scope) setScope('all'); lastStage = -1; });
+$('#play').addEventListener('click', function () { state.playing = !state.playing; this.textContent = state.playing ? 'Pause' : 'Play'; });
+$('#restart').addEventListener('click', function () { var r = state.scope === 'all' ? [0, NS] : shopRange(state.scope); state.t = r[0] * DUR; state.playing = true; $('#play').textContent = 'Pause'; });
+Array.prototype.forEach.call(document.querySelectorAll('input[name=sp]'), function (el) { el.addEventListener('change', function () { state.speed = +el.value; }); });
+$('#scrub').addEventListener('input', function (e) { state.t = clamp(+e.target.value / 1000 * NS * DUR, 0, NS * DUR - 0.01); state.playing = false; $('#play').textContent = 'Play'; var si = Math.floor(state.t / DUR); if (state.scope !== 'all' && ST[si].shop !== state.scope) setScope('all'); lastStage = -1; });
+$('#paint').addEventListener('change', function () { C = null; });
+function themeChanged() { C = null; lastStage = -1; }
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged);
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+buildStatic(); requestAnimationFrame(function (t) { last = t; frame(t); });
+window.__plant = { state: state, NS: NS, DUR: DUR };
+})();
+</script>
+
+</body></html>
