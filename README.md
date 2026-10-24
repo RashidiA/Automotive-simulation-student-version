@@ -15,24 +15,24 @@ The objective is simple and direct: connect foundational mathematics, core engin
 
 The platform currently includes five interactive simulation modules:
 
-1. **Adaptive Spot Welding Simulator**[cite: 8]
-   * **Focus:** Explore how closed-loop feedback systems work in resistance spot welding[cite: 8].
+1. **Adaptive Spot Welding Simulator**
+   * **Focus:** Explore how closed-loop feedback systems work in resistance spot welding.
    * **Key Learnings:** Dynamic resistance tracking, feedback control loops, and quality consistency.
 
-2. **Automotive Welding Math Simulator**[cite: 8]
-   * **Focus:** Explore the mathematical principles behind spot welding, Gas Metal Arc Welding (GMAW), and laser welding[cite: 8].
-   * **Key Learnings:** Visualize how mathematical equations directly relate to weld outcomes, heat input, and nugget growth[cite: 8].
+2. **Automotive Welding Math Simulator**
+   * **Focus:** Explore the mathematical principles behind spot welding, Gas Metal Arc Welding (GMAW), and laser welding.
+   * **Key Learnings:** Visualize how mathematical equations directly relate to weld outcomes, heat input, and nugget growth.
 
-3. **Car Plant Process Simulator**[cite: 8]
-   * **Focus:** Learn about end-to-end automotive manufacturing shop floor processes through simulation[cite: 8].
+3. **Car Plant Process Simulator**
+   * **Focus:** Learn about end-to-end automotive manufacturing shop floor processes through simulation.
    * **Key Learnings:** Production flow, bottlenecks, assembly sequencing, and plant logistics.
 
-4. **Laser Seam Tracking Simulator**[cite: 8]
-   * **Focus:** Explore the concept of tracking a welding seam in an automated laser welding process[cite: 8].
+4. **Laser Seam Tracking Simulator**
+   * **Focus:** Explore the concept of tracking a welding seam in an automated laser welding process.
    * **Key Learnings:** Machine vision principles, sensor feedback, and real-time path correction.
 
-5. **Torque Line Monitor**[cite: 8]
-   * **Focus:** Understand torque monitoring systems in modern automotive assembly lines[cite: 8].
+5. **Torque Line Monitor**
+   * **Focus:** Understand torque monitoring systems in modern automotive assembly lines.
    * **Key Learnings:** Fastener torque verification, error-proofing (poka-yoke), and assembly data tracing.
 
 ---
