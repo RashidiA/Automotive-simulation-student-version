@@ -21,14 +21,14 @@ The main page (`index.html`) is a single self-contained file with no external li
 * **"Continue where you left off"** row and per-card open counts, saved in the visitor's own browser.
 * **"Surprise me"** button that opens a random simulator.
 * **Dark and light themes**, following the system setting by default.
-* **Keyboard shortcuts:** `/` search, `1`–`6` open a simulator, `T` switch theme, `Esc` clear search.
+* **Keyboard shortcuts:** `/` search, `1`–`7` open a simulator, `T` switch theme, `Esc` clear search.
 * **Animated background**, hover tilt and glow on cards, and a mobile-friendly layout. Animations are turned off for visitors who prefer reduced motion.
 
 ---
 
 ## 🛠️ Included Simulations
 
-The platform currently includes six interactive simulation modules:
+The platform currently includes seven interactive simulation modules:
 
 1. **Car Anatomy Lab** 🆕
    * **Focus:** A realistic 3D car for exploring how a vehicle is built, with six systems: body and frame, engine, transmission, suspension and wheels, control systems (steering and brakes), and electrical.
@@ -55,6 +55,12 @@ The platform currently includes six interactive simulation modules:
 6. **Torque Line Monitor**
    * **Focus:** Understand torque monitoring systems in modern automotive assembly lines.
    * **Key Learnings:** Fastener torque verification, error-proofing (poka-yoke), and assembly data tracing.
+
+7. **ADAS Simulator (Level 0 to 5)** 🆕
+   * **Focus:** Compare the six SAE J3016 driving automation levels in a 3D driving scene, using the Mitsubishi Lancer Evolution model.
+   * **What you can do:** Pick a level (0 to 5) and a scenario (stopped vehicle, pedestrian, cut-in, red light, animal, lane drift, road works, fog), switch between chase, cabin (through the windscreen), and top views, watch object and blue lane-marking detection, and drive manually or let a virtual driver (attentive or distracted) react. A live panel shows warnings, braking, takeover requests and the sensors in use, and "Compare Levels 0–5" runs the same scenario at every level.
+   * **ADAS levels explained tab:** A separate tab explains each level at a glance: who drives, who watches the road, what happens at the system's limit, typical examples, and which sensors and equipment (camera, radar, lidar, driver monitoring, redundancy and so on) each level normally uses. Sensor lists are typical, not fixed; manufacturers differ.
+   * **Key Learnings:** The difference between driver support and automated driving, how sensors complement each other, why driver monitoring and takeover requests matter, and how a minimal-risk stop works.
 
 ---
 
@@ -88,6 +94,7 @@ If you wish to run or inspect the dashboard source code locally:
 ├── Car Plant Process Simulator.html         # Manufacturing workflow module
 ├── Laser Seam Tracking Simulator.html       # Machine vision & laser tracking module
 ├── Torque Line Monitor.html                 # Assembly torque monitoring module
+├── ADAS_Simulator.html                      # ADAS level 0-5 3D simulator with levels comparison tab
 └── README.md                                # This file
 ```
 
@@ -96,4 +103,5 @@ If you wish to run or inspect the dashboard source code locally:
 ## 🧩 Credits and Notes
 
 * The Car Anatomy Lab uses [three.js](https://threejs.org/) for 3D rendering. The car shell, wheels, brake discs, calipers and interior come from a Mitsubishi Lancer Evolution model, and the body-in-white structure from a Toyota Camry model, both supplied by the author. Please check the original model licences before wider redistribution.
+* The ADAS Simulator uses three.js (loaded from a CDN, so it needs an internet connection) and the same Mitsubishi Lancer Evolution model as the Car Anatomy Lab. It is a simplified teaching model and not a real ADAS implementation.
 * This is a student version intended for teaching. Values shown in the simulators are simplified for learning and are not for real vehicle design or safety decisions.
