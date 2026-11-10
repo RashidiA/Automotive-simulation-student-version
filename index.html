@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Automotive Simulations Dashboard</title>
-<meta name="description" content="Interactive automotive engineering simulators for students: welding, laser tracking, torque monitoring, plant processes and car anatomy.">
+<meta name="description" content="Interactive automotive engineering simulators for students: welding, laser tracking, torque monitoring, plant processes, car anatomy and ADAS levels 0 to 5.">
 <style>
 :root{
   --bg:#0b1220; --bg2:#101a2e; --card:#14203a; --card-hi:#1a2a4b; --line:#25365c;
@@ -117,7 +117,7 @@ kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;paddi
 
   <section id="recent"><h3>Continue where you left off</h3><div class="list" id="rlist"></div></section>
 
-  <footer>Tip: press <kbd>/</kbd> to search, <kbd>1</kbd>–<kbd>6</kbd> to open a simulator, <kbd>T</kbd> to switch theme.<br>Automotive Simulation, student version</footer>
+  <footer>Tip: press <kbd>/</kbd> to search, <kbd>1</kbd>–<kbd>7</kbd> to open a simulator, <kbd>T</kbd> to switch theme.<br>Automotive Simulation, student version</footer>
 </div>
 
 <script>
@@ -146,7 +146,11 @@ const MODULES = [
   { file: "Torque Line Monitor.html", title: "Torque Line Monitor", cat: "Assembly", color: "#18dcff",
     desc: "Monitor tightening on an assembly line: watch torque curves, spot out-of-range bolts and learn how quality limits are applied.",
     tags: ["Assembly", "Monitoring"],
-    icon: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/><path d="M4 17h2M18 17h2M12 9v1"/>' }
+    icon: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/><path d="M4 17h2M18 17h2M12 9v1"/>' },
+  { file: "ADAS_Simulator.html", title: "ADAS Simulator (Level 0 to 5)", cat: "Vehicle safety", color: "#ffd32a", isNew: true,
+    desc: "Drive through the windscreen of a 3D car and compare SAE ADAS levels 0 to 5: lane keeping, emergency braking, takeover requests and obstacle avoidance. Includes a tab that explains the sensors and systems of each level.",
+    tags: ["ADAS", "3D", "Sensors"],
+    icon: '<path d="M4 18l4-12M20 18l-4-12M12 6v3M12 12v3"/><path d="M3 21h18"/>' }
 ];
 
 const $ = s => document.querySelector(s);
