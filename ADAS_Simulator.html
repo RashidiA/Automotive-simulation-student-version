@@ -72,6 +72,10 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:5px 6px;b
 .pd{background:#4a2c10;color:#ffb36b}.ps{background:#2b1b57;color:#c4a8ff}.pb{background:#173a52;color:#7fd0ff}
 .legend{font-size:12px;color:var(--mut);margin:6px 0}
 .try{font:700 11px system-ui;background:#1a2240;border:1px solid #3a4570;color:#fff;border-radius:8px;padding:5px 9px;cursor:pointer}.try:hover{border-color:#b79cff}
+
+.lc{border-top:4px solid var(--nk,#8a94ad)}
+.nick{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;padding:3px 9px;border-radius:999px;background:var(--nk,#8a94ad);color:#10131c;margin:2px 0 6px;align-self:flex-start}
+.lc .nkd{font-size:12px;color:#c9d3f2;margin-bottom:6px;font-weight:600}
 </style></head>
 <body>
 <header><h1>ADAS Simulator &ndash; SAE Level 0 to 5</h1><small>Mitsubishi Lancer Evolution 3D model &middot; cabin windscreen view &middot; obstacle-avoidance scenarios</small></header>
@@ -585,6 +589,10 @@ function buildEgo(rhd) {
   ego.rhd = rhd; ego.chassis.clear(); ego.shell.clear(); ego.wheels.length = 0; ego.swG = new T.Group();
   const DS = T.DoubleSide, mp = (c, o) => new T.MeshPhysicalMaterial(Object.assign({color: c, side: DS}, o));
   EGOM.paint = mp(0x1a2f7a, {metalness: 0.55, roughness: 0.28, clearcoat: 0.9, clearcoatRoughness: 0.08});
+  /* inner faces of the painted shell show through gaps in the dash (blue patch at wheel hub / cluster): draw them as dark trim */
+  EGOM.paint.onBeforeCompile = sh => {
+    sh.vertexShader = 'varying vec3 vLp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLp = position;');
+    sh.fragmentShader = 'varying vec3 vLp;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n if (!gl_FrontFacing || distance(vLp, vec3(0.405, 0.921, -0.368)) < 0.34) gl_FragColor.rgb = vec3(0.06, 0.065, 0.075);'); };
   EGOM.trim = mp(0x15181c, {metalness: 0.2, roughness: 0.6});
   EGOM.glass = mp(0x1d2a38, {metalness: 0.5, roughness: 0.05, transparent: true, opacity: 0.16, depthWrite: false});
   EGOM.head = new T.MeshStandardMaterial({color: 0xe9eff6, emissive: 0xfff1cc, emissiveIntensity: 0.0, roughness: 0.05, side: DS});
@@ -597,6 +605,8 @@ function buildEgo(rhd) {
   const sw = EVODATA.sw, cV = new T.Vector3(...sw.c); ego.swG.position.copy(cV);
   EVODATA.interior.forEach(d => { const g = evoGeo(d), me = new T.Mesh(g, I[d.k]); if (d.k === 'wheel') { me.position.copy(cV).negate(); ego.swG.add(me); } else ego.shell.add(me); });
   ego.shell.add(ego.swG); ego.swAxis = new T.Vector3(...sw.n).normalize();
+  /* hub cap: the source model has an open hole at the wheel centre, through which the blue body panel behind showed */
+  { const cap = new T.Mesh(new T.CircleGeometry(0.075, 28), I.wheel); cap.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), ego.swAxis); cap.position.copy(ego.swAxis).multiplyScalar(0.012); ego.swG.add(cap); }
   /* wheels (tyre, rim, nuts, cap) + brake disc/caliper, mirrored per side */
   const tyreM = mp(0x1a1c1f, {roughness: 0.92}), rimM = mp(0xc9ced4, {metalness: 1, roughness: 0.22}), discM = mp(0x9aa0a8, {metalness: 0.9, roughness: 0.35}), calM = mp(0xc8201c, {roughness: 0.35, metalness: 0.3});
   const WG = {}; for (const k of ['tyre', 'rim', 'nuts', 'cap']) WG[k] = evoGeo(EVODATA.wheel[k]);
@@ -961,10 +971,12 @@ function frame(now) {
 /* ---------- "ADAS levels explained" tab ---------- */
 (function () {
   const names = ['No automation', 'Driver assistance', 'Partial automation', 'Conditional automation', 'High automation', 'Full automation'];
+  const nick = [['ALL ON', 'Driver does everything', '#8a94ad'], ['FEET OFF', 'Feet free: car holds speed and distance (ACC)', '#3fc1c9'], ['HANDS OFF', 'Hands free: car also steers (eyes stay on road)', '#f5b82e'], ['EYES OFF', 'Eyes free: you may look away, but be ready to take over', '#f28a1e'], ['MIND OFF', 'Mind free: no need to be ready, inside the car\'s area', '#a6cf2a'], ['DRIVER OFF', 'No driver needed anywhere', '#e5412d']];
   const shareDrv = [100, 80, 50, 20, 5, 0];
-  const short = ['Driver does everything. The car only warns.', 'The car helps with speed OR steering. The driver does the rest.', 'The car steers and controls speed. The driver must watch all the time.', 'The car drives in limited conditions. The driver may look away, but must take over when asked.', 'The car drives itself inside a defined area. No driver needed there.', 'The car drives itself anywhere, anytime. No driver at all.'];
-  $2('cards6').innerHTML = names.map((n, i) => '<div class="lc"><div class="big">L' + i + '</div><div class="nm">' + n + '</div><div class="ds">' + short[i] + '</div><div class="share" style="--p:' + shareDrv[i] + '%"></div><div class="sharel"><span>driver</span><span>system</span></div><button class="try" data-try="' + i + '">Try Level ' + i + ' in simulator</button></div>').join('');
+  const short = ['The car can only warn you (collision, lane, blind spot).', 'The car helps with speed OR steering. The driver does the rest.', 'The car steers and controls speed. The driver must watch all the time.', 'The car drives in limited conditions. The driver may look away, but must take over when asked.', 'The car drives itself inside a defined area. No driver needed there.', 'The car drives itself anywhere, anytime. No driver at all.'];
+  $2('cards6').innerHTML = names.map((n, i) => '<div class="lc" style="--nk:' + nick[i][2] + '"><div class="big">L' + i + '</div><span class="nick">' + nick[i][0] + '</span><div class="nm">' + n + '</div><div class="nkd">' + nick[i][1] + '</div><div class="ds">' + short[i] + '</div><div class="share" style="--p:' + shareDrv[i] + '%"></div><div class="sharel"><span>driver</span><span>system</span></div><button class="try" data-try="' + i + '">Try Level ' + i + ' in simulator</button></div>').join('');
   const R = [
+    ['Easy way to remember', nick.map(x => '<span class="nick" style="--nk:' + x[2] + '">' + x[0] + '</span><br>' + x[1])],
     ['SAE name', ['No Driving Automation', 'Driver Assistance', 'Partial Driving Automation', 'Conditional Driving Automation', 'High Driving Automation', 'Full Driving Automation']],
     ['Who drives (steering + speed)', ['<span class="pill pd">Driver</span>', '<span class="pill pd">Driver</span> + system helps with <b>one</b> of steering or speed', '<span class="pill pb">System steers and controls speed</span>', '<span class="pill ps">System</span> (inside its limits)', '<span class="pill ps">System</span> (inside its domain)', '<span class="pill ps">System</span> (everywhere)']],
     ['Who watches the road', ['Driver', 'Driver', 'Driver (a camera checks the driver is watching)', 'System &ndash; but the driver must stay ready', 'System', 'System']],
