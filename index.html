@@ -79,6 +79,9 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .empty{display:none;text-align:center;color:var(--dim);padding:40px 0}
 footer{margin-top:44px;text-align:center;color:var(--dim);font-size:12px}
 kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:11px;background:var(--card)}
+#lang{display:inline-flex;padding:0;overflow:hidden}
+#lang b{padding:8px 10px;font-weight:700;font-size:12px;color:var(--dim);letter-spacing:.04em}
+#lang b.on{background:var(--accent);color:#fff}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:520px){.grid{grid-template-columns:1fr}.hero{padding-top:30px}}
 </style>
@@ -87,73 +90,96 @@ kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;paddi
 <canvas id="bg" aria-hidden="true"></canvas>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><i></i>Automotive Engineering Lab</div>
+    <div class="brand"><i></i><span data-i="brand">Automotive Engineering Lab</span></div>
     <div class="tools">
-      <button class="ibtn" id="rand" title="Open a random simulator">Surprise me</button>
-      <button class="ibtn" id="theme" aria-label="Toggle light or dark theme">Theme</button>
+      <button class="ibtn" id="rand" title="Open a random simulator" data-i="rand">Surprise me</button>
+      <button class="ibtn" id="lang" data-ia="langAria" aria-label="Change language" title="English / Bahasa Malaysia"><b data-l="en">EN</b><b data-l="bm">BM</b></button>
+      <button class="ibtn" id="theme" data-ia="themeAria" data-i="theme" aria-label="Toggle light or dark theme">Theme</button>
     </div>
   </header>
 
   <section class="hero">
-    <h1>Automotive Engineering Simulations</h1>
-    <p>Hands-on simulators for students: learn how cars are designed, welded, assembled and tested. Pick a module, change the settings and watch what happens.</p>
+    <h1 data-i="h1">Automotive Engineering Simulations</h1>
+    <p data-i="heroP">Hands-on simulators for students: learn how cars are designed, welded, assembled and tested. Pick a module, change the settings and watch what happens.</p>
     <div class="stats">
-      <div class="stat"><b id="n-mod">0</b><span>Simulators</span></div>
-      <div class="stat"><b id="n-cat">0</b><span>Topics</span></div>
-      <div class="stat"><b id="n-vis">0</b><span>Opened by you</span></div>
+      <div class="stat"><b id="n-mod">0</b><span data-i="statSim">Simulators</span></div>
+      <div class="stat"><b id="n-cat">0</b><span data-i="statTop">Topics</span></div>
+      <div class="stat"><b id="n-vis">0</b><span data-i="statVis">Opened by you</span></div>
     </div>
   </section>
 
   <div class="bar">
     <div class="search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="q" type="search" placeholder="Search simulators (press / )" aria-label="Search simulators" autocomplete="off">
+      <input id="q" type="search" placeholder="Search simulators (press / )" aria-label="Search simulators" data-ip="searchPh" data-ia="searchAria" autocomplete="off">
     </div>
-    <div class="chips" id="chips" role="group" aria-label="Filter by topic"></div>
+    <div class="chips" id="chips" role="group" aria-label="Filter by topic" data-ia="chipsAria"></div>
   </div>
 
   <main class="grid" id="grid"></main>
-  <div class="empty" id="empty">No simulator matches your search.</div>
+  <div class="empty" id="empty" data-i="empty">No simulator matches your search.</div>
 
-  <section id="recent"><h3>Continue where you left off</h3><div class="list" id="rlist"></div></section>
+  <section id="recent"><h3 data-i="recent">Continue where you left off</h3><div class="list" id="rlist"></div></section>
 
-  <footer>Tip: press <kbd>/</kbd> to search, <kbd>1</kbd>–<kbd>7</kbd> to open a simulator, <kbd>T</kbd> to switch theme.<br>Automotive Simulation, student version</footer>
+  <footer id="foot"></footer>
 </div>
 
 <script>
-/* ===== Edit this list to add, rename or remove simulators ===== */
+/* ===== Edit this block to add, rename or remove simulators and texts (each text has English "en" and Bahasa Malaysia "bm") ===== */
+const UI = {
+  en: {
+    title: 'Automotive Simulations Dashboard', metaDesc: 'Interactive automotive engineering simulators for students: welding, laser tracking, torque monitoring, plant processes, car anatomy and ADAS levels 0 to 5.',
+    brand: 'Automotive Engineering Lab', rand: 'Surprise me', randTitle: 'Open a random simulator', theme: 'Theme', themeAria: 'Toggle light or dark theme', langAria: 'Change language',
+    h1: 'Automotive Engineering Simulations', heroP: 'Hands-on simulators for students: learn how cars are designed, welded, assembled and tested. Pick a module, change the settings and watch what happens.',
+    statSim: 'Simulators', statTop: 'Topics', statVis: 'Opened by you', searchPh: 'Search simulators (press / )', searchAria: 'Search simulators', chipsAria: 'Filter by topic', all: 'All',
+    empty: 'No simulator matches your search.', recent: 'Continue where you left off', open: 'Open', isNew: 'NEW', notOpened: 'Not opened yet',
+    opened: n => 'Opened ' + n + (n === 1 ? ' time' : ' times'),
+    foot: n => 'Tip: press <kbd>/</kbd> to search, <kbd>1</kbd>–<kbd>' + n + '</kbd> to open a simulator, <kbd>T</kbd> to switch theme, <kbd>L</kbd> to change language.<br>Automotive Simulation, student version'
+  },
+  bm: {
+    title: 'Papan Pemuka Simulasi Automotif', metaDesc: 'Simulator kejuruteraan automotif interaktif untuk pelajar: kimpalan, penjejakan laser, pemantauan tork, proses kilang, anatomi kereta dan ADAS tahap 0 hingga 5.',
+    brand: 'Makmal Kejuruteraan Automotif', rand: 'Kejutkan saya', randTitle: 'Buka simulator rawak', theme: 'Tema', themeAria: 'Tukar tema cerah atau gelap', langAria: 'Tukar bahasa',
+    h1: 'Simulasi Kejuruteraan Automotif', heroP: 'Simulator amali untuk pelajar: pelajari bagaimana kereta direka bentuk, dikimpal, dipasang dan diuji. Pilih satu modul, ubah tetapan dan lihat apa yang berlaku.',
+    statSim: 'Simulator', statTop: 'Topik', statVis: 'Dibuka oleh anda', searchPh: 'Cari simulator (tekan / )', searchAria: 'Cari simulator', chipsAria: 'Tapis mengikut topik', all: 'Semua',
+    empty: 'Tiada simulator yang sepadan dengan carian anda.', recent: 'Sambung dari tempat anda berhenti', open: 'Buka', isNew: 'BAHARU', notOpened: 'Belum dibuka',
+    opened: n => 'Dibuka ' + n + ' kali',
+    foot: n => 'Petua: tekan <kbd>/</kbd> untuk mencari, <kbd>1</kbd>–<kbd>' + n + '</kbd> untuk membuka simulator, <kbd>T</kbd> untuk menukar tema, <kbd>L</kbd> untuk menukar bahasa.<br>Simulasi Automotif, versi pelajar'
+  }
+};
+const CATS_BM = { 'Vehicle design': 'Reka bentuk kenderaan', 'Welding': 'Kimpalan', 'Manufacturing': 'Pembuatan', 'Machine vision': 'Penglihatan mesin', 'Assembly': 'Pemasangan', 'Vehicle safety': 'Keselamatan kenderaan' };
+const TAGS_BM = { 'Guided tour': 'Lawatan berpandu', 'Welding': 'Kimpalan', 'Control': 'Kawalan', 'Equations': 'Persamaan', 'Physics': 'Fizik', 'Workflow': 'Aliran kerja', 'Plant': 'Kilang', 'Vision': 'Penglihatan', 'Robotics': 'Robotik', 'Assembly': 'Pemasangan', 'Monitoring': 'Pemantauan', 'Sensors': 'Sensor' };
 const MODULES = [
   { file: "Car Anatomy Lab Latest.html", title: "Car Anatomy Lab", cat: "Vehicle design", color: "#4da3ff", isNew: true,
-    desc: "A realistic 3D car with six systems: body and frame, engine, transmission, suspension, steering and brakes, and electrical. Explode it, label it, drive it, or take the guided tour in English or Malay.",
+    desc: { en: "A realistic 3D car with six systems: body and frame, engine, transmission, suspension, steering and brakes, and electrical. Explode it, label it, drive it, or take the guided tour in English or Malay.", bm: "Kereta 3D yang realistik dengan enam sistem: badan dan rangka, enjin, transmisi, suspensi, stereng dan brek, serta elektrik. Pecahkan (explode), labelkan, pandu, atau ikuti lawatan berpandu dalam bahasa Inggeris atau Melayu." },
     tags: ["3D", "Guided tour", "EN / BM"],
     icon: '<path d="M3 15l1.5-5A2 2 0 0 1 6.4 8.5h11.2a2 2 0 0 1 1.9 1.5L21 15v3h-2.2"/><path d="M3 15v3h2.2"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9.5 17.5h5"/>' },
   { file: "Adaptive Spot Welding Simulator.html", title: "Adaptive Spot Welding Simulator", cat: "Welding", color: "#ff9f43",
-    desc: "Adjust current, time and electrode force and see how the weld nugget forms and how an adaptive controller reacts to changing conditions.",
+    desc: { en: "Adjust current, time and electrode force and see how the weld nugget forms and how an adaptive controller reacts to changing conditions.", bm: "Laraskan arus, masa dan daya elektrod dan lihat bagaimana nugget kimpalan terbentuk serta bagaimana pengawal adaptif bertindak balas terhadap keadaan yang berubah." },
     tags: ["Welding", "Control"],
     icon: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>' },
   { file: "Automotive Welding Math Simulator.html", title: "Automotive Welding Math Simulator", cat: "Welding", color: "#ff6b81",
-    desc: "The equations and physics behind welding: heat input, resistance, energy and nugget size, with live calculations as you change the numbers.",
+    desc: { en: "The equations and physics behind welding: heat input, resistance, energy and nugget size, with live calculations as you change the numbers.", bm: "Persamaan dan fizik di sebalik kimpalan: input haba, rintangan, tenaga dan saiz nugget, dengan pengiraan langsung apabila anda mengubah nombor." },
     tags: ["Equations", "Physics"],
     icon: '<path d="M5 4h14M5 4l7 8-7 8h14"/>' },
   { file: "Car Plant Process Simulator.html", title: "Car Plant Process Simulator", cat: "Manufacturing", color: "#2ed573",
-    desc: "Follow a car through the plant from stamping and body shop to paint and final assembly, and see how the workflow and bottlenecks affect output.",
+    desc: { en: "Follow a car through the plant from stamping and body shop to paint and final assembly, and see how the workflow and bottlenecks affect output.", bm: "Ikuti sebuah kereta melalui kilang daripada penempaan dan bengkel badan hingga pengecatan dan pemasangan akhir, dan lihat bagaimana aliran kerja dan kesesakan (bottleneck) menjejaskan output." },
     tags: ["Workflow", "Plant"],
     icon: '<path d="M3 21V10l6 3V10l6 3V6h6v15z"/><path d="M8 21v-3M13 21v-3M18 21v-3"/>' },
   { file: "Laser Seam Tracking Simulator.html", title: "Laser Seam Tracking Simulator", cat: "Machine vision", color: "#a55eea",
-    desc: "See how a laser sensor finds a weld seam and steers the robot along it, and what happens when the seam moves or the signal is noisy.",
+    desc: { en: "See how a laser sensor finds a weld seam and steers the robot along it, and what happens when the seam moves or the signal is noisy.", bm: "Lihat bagaimana sensor laser mencari seam kimpalan dan mengarahkan robot mengikutinya, dan apa yang berlaku apabila seam berubah kedudukan atau isyarat menjadi bising." },
     tags: ["Vision", "Robotics"],
     icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/><circle cx="12" cy="12" r="9"/>' },
   { file: "Torque Line Monitor.html", title: "Torque Line Monitor", cat: "Assembly", color: "#18dcff",
-    desc: "Monitor tightening on an assembly line: watch torque curves, spot out-of-range bolts and learn how quality limits are applied.",
+    desc: { en: "Monitor tightening on an assembly line: watch torque curves, spot out-of-range bolts and learn how quality limits are applied.", bm: "Pantau pengetatan pada talian pemasangan: perhatikan lengkung tork, kenal pasti bolt di luar julat dan pelajari bagaimana had kualiti digunakan." },
     tags: ["Assembly", "Monitoring"],
     icon: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-6"/><path d="M4 17h2M18 17h2M12 9v1"/>' },
   { file: "ADAS_Simulator.html", title: "ADAS Simulator (Level 0 to 5)", cat: "Vehicle safety", color: "#ffd32a", isNew: true,
-    desc: "Drive through the windscreen of a 3D car and compare SAE ADAS levels 0 to 5: lane keeping, emergency braking, takeover requests and obstacle avoidance. Includes a tab that explains the sensors and systems of each level.",
+    desc: { en: "Drive through the windscreen of a 3D car and compare SAE ADAS levels 0 to 5: lane keeping, emergency braking, takeover requests and obstacle avoidance. Includes a tab that explains the sensors and systems of each level.", bm: "Pandu melalui cermin depan kereta 3D dan bandingkan tahap ADAS SAE 0 hingga 5: pengekalan lorong, brek kecemasan, permintaan ambil alih dan mengelak halangan. Termasuk tab yang menerangkan sensor dan sistem bagi setiap tahap." },
     tags: ["ADAS", "3D", "Sensors"],
     icon: '<path d="M4 18l4-12M20 18l-4-12M12 6v3M12 12v3"/><path d="M3 21h18"/>' }
 ];
 
-const $ = s => document.querySelector(s);
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
@@ -161,36 +187,54 @@ const store = {
 const href = f => encodeURI(f);
 let visits = store.get('ads.visits', {});      // file -> count
 let last = store.get('ads.last', []);          // recently opened files
-let cat = 'All';
+let cat = 'All', first = true;
+let lang = store.get('ads.lang', /^(ms|id)/i.test(navigator.language || '') ? 'bm' : 'en'); if (lang !== 'en' && lang !== 'bm') lang = 'en';
+const tr = k => UI[lang][k], catTxt = c => c === 'All' ? tr('all') : (lang === 'bm' ? (CATS_BM[c] || c) : c), tagTxt = t => lang === 'bm' ? (TAGS_BM[t] || t) : t;
 
+/* ---- static text ---- */
+function applyStatic() {
+  const U = UI[lang];
+  document.documentElement.lang = lang === 'bm' ? 'ms' : 'en'; document.title = U.title; $('meta[name=description]').setAttribute('content', U.metaDesc);
+  $$('[data-i]').forEach(el => { el.textContent = U[el.dataset.i]; });
+  $$('[data-ip]').forEach(el => el.setAttribute('placeholder', U[el.dataset.ip]));
+  $$('[data-ia]').forEach(el => el.setAttribute('aria-label', U[el.dataset.ia]));
+  $('#rand').title = U.randTitle; $('#foot').innerHTML = U.foot(MODULES.length);
+  $$('#lang b').forEach(b => b.classList.toggle('on', b.dataset.l === lang));
+}
 /* ---- build cards ---- */
 const grid = $('#grid');
-MODULES.forEach((m, i) => {
-  const a = document.createElement('a');
-  a.className = 'card'; a.href = href(m.file); a.style.setProperty('--c', m.color); a.style.animationDelay = (i * 70) + 'ms';
-  a.dataset.file = m.file; a.dataset.cat = m.cat;
-  a.dataset.search = (m.title + ' ' + m.desc + ' ' + m.cat + ' ' + m.tags.join(' ')).toLowerCase();
-  a.innerHTML =
-    (m.isNew ? '<span class="new">NEW</span>' : '') +
-    '<div class="ic"><svg viewBox="0 0 24 24">' + m.icon + '</svg></div>' +
-    '<h2>' + m.title + '</h2><p>' + m.desc + '</p>' +
-    '<div class="tags">' + m.tags.map(t => '<span class="tag">' + t + '</span>').join('') + '</div>' +
-    '<div class="foot"><span class="seen"></span><span class="go">Open <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>';
-  a.addEventListener('click', () => { visits[m.file] = (visits[m.file] || 0) + 1; last = [m.file].concat(last.filter(x => x !== m.file)).slice(0, 4); store.set('ads.visits', visits); store.set('ads.last', last); });
-  /* spotlight and tilt that follow the pointer */
-  a.addEventListener('pointermove', e => {
-    const r = a.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-    a.style.setProperty('--mx', (x * 100) + '%'); a.style.setProperty('--my', (y * 100) + '%');
-    if (e.pointerType === 'mouse') a.style.transform = 'perspective(800px) rotateX(' + ((0.5 - y) * 7) + 'deg) rotateY(' + ((x - 0.5) * 9) + 'deg) translateY(-3px)';
+function renderCards() {
+  grid.innerHTML = '';
+  MODULES.forEach((m, i) => {
+    const a = document.createElement('a');
+    a.className = 'card'; a.href = href(m.file); a.style.setProperty('--c', m.color);
+    if (first) a.style.animationDelay = (i * 70) + 'ms'; else a.style.animation = 'none';
+    a.dataset.file = m.file; a.dataset.cat = m.cat;
+    a.dataset.search = [m.title, m.desc.en, m.desc.bm, m.cat, CATS_BM[m.cat] || '', m.tags.join(' '), m.tags.map(t => TAGS_BM[t] || t).join(' ')].join(' ').toLowerCase();
+    a.innerHTML =
+      (m.isNew ? '<span class="new">' + tr('isNew') + '</span>' : '') +
+      '<div class="ic"><svg viewBox="0 0 24 24">' + m.icon + '</svg></div>' +
+      '<h2>' + m.title + '</h2><p>' + m.desc[lang] + '</p>' +
+      '<div class="tags">' + m.tags.map(t => '<span class="tag">' + tagTxt(t) + '</span>').join('') + '</div>' +
+      '<div class="foot"><span class="seen"></span><span class="go">' + tr('open') + ' <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>';
+    a.addEventListener('click', () => { visits[m.file] = (visits[m.file] || 0) + 1; last = [m.file].concat(last.filter(x => x !== m.file)).slice(0, 4); store.set('ads.visits', visits); store.set('ads.last', last); });
+    /* spotlight and tilt that follow the pointer */
+    a.addEventListener('pointermove', e => {
+      const r = a.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      a.style.setProperty('--mx', (x * 100) + '%'); a.style.setProperty('--my', (y * 100) + '%');
+      if (e.pointerType === 'mouse') a.style.transform = 'perspective(800px) rotateX(' + ((0.5 - y) * 7) + 'deg) rotateY(' + ((x - 0.5) * 9) + 'deg) translateY(-3px)';
+    });
+    a.addEventListener('pointerleave', () => { a.style.transform = ''; });
+    grid.appendChild(a);
   });
-  a.addEventListener('pointerleave', () => { a.style.transform = ''; });
-  grid.appendChild(a);
-});
-
+}
 /* ---- filters ---- */
 const cats = ['All'].concat([...new Set(MODULES.map(m => m.cat))]);
 const chips = $('#chips');
-cats.forEach(c => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = c; b.setAttribute('aria-pressed', c === cat); b.onclick = () => { cat = c; chips.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); apply(); }; chips.appendChild(b); });
+function renderChips() {
+  chips.innerHTML = '';
+  cats.forEach(c => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = catTxt(c); b.dataset.c = c; b.setAttribute('aria-pressed', c === cat); b.onclick = () => { cat = c; chips.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); apply(); }; chips.appendChild(b); });
+}
 function apply() {
   const q = $('#q').value.trim().toLowerCase(); let n = 0;
   grid.querySelectorAll('.card').forEach(c => { const ok = (cat === 'All' || c.dataset.cat === cat) && (!q || c.dataset.search.includes(q)); c.classList.toggle('hide', !ok); if (ok) n++; });
@@ -199,16 +243,19 @@ function apply() {
 $('#q').addEventListener('input', apply);
 
 /* ---- stats, visit counts, recent ---- */
-function refresh() {
-  grid.querySelectorAll('.card').forEach(c => { const v = visits[c.dataset.file] || 0; c.querySelector('.seen').textContent = v ? 'Opened ' + v + (v === 1 ? ' time' : ' times') : 'Not opened yet'; });
+function refresh(animate) {
+  grid.querySelectorAll('.card').forEach(c => { const v = visits[c.dataset.file] || 0; c.querySelector('.seen').textContent = v ? UI[lang].opened(v) : tr('notOpened'); });
   const opened = Object.keys(visits).filter(f => MODULES.some(m => m.file === f)).length;
-  count('#n-mod', MODULES.length); count('#n-cat', cats.length - 1); count('#n-vis', opened);
+  if (animate) { count('#n-mod', MODULES.length); count('#n-cat', cats.length - 1); count('#n-vis', opened); }
   const r = last.map(f => MODULES.find(m => m.file === f)).filter(Boolean);
   $('#recent').style.display = r.length ? 'block' : 'none';
   $('#rlist').innerHTML = r.map(m => '<a href="' + href(m.file) + '">' + m.title + '</a>').join('');
 }
 function count(sel, to) { const el = $(sel), t0 = performance.now(); (function f(t) { const k = Math.min(1, (t - t0) / 700); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(f); })(t0); }
-refresh();
+function renderAll() { applyStatic(); renderChips(); renderCards(); apply(); refresh(first); first = false; }
+function setLang(l) { lang = l; store.set('ads.lang', l); renderAll(); }
+$('#lang').onclick = () => setLang(lang === 'en' ? 'bm' : 'en');
+renderAll();
 
 /* ---- theme, random, keyboard ---- */
 function setTheme(t) { document.documentElement.dataset.theme = t; store.set('ads.theme', t); }
@@ -224,6 +271,7 @@ addEventListener('keydown', e => {
   if (typing) return;
   if (e.key === '/') { e.preventDefault(); $('#q').focus(); }
   else if (e.key.toLowerCase() === 't') toggleTheme();
+  else if (e.key.toLowerCase() === 'l') setLang(lang === 'en' ? 'bm' : 'en');
   else if (/^[1-9]$/.test(e.key) && MODULES[+e.key - 1]) open(MODULES[+e.key - 1]);
 });
 
