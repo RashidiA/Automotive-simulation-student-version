@@ -21,7 +21,8 @@ The main page (`index.html`) is a single self-contained file with no external li
 * **"Continue where you left off"** row and per-card open counts, saved in the visitor's own browser.
 * **"Surprise me"** button that opens a random simulator.
 * **Dark and light themes**, following the system setting by default.
-* **Keyboard shortcuts:** `/` search, `1`–`7` open a simulator, `T` switch theme, `Esc` clear search.
+* **Two languages:** the **EN / BM** button switches the dashboard between English and Bahasa Malaysia (menus, cards, topics, tags and messages). The choice is saved in the browser, and a first visit follows the device language. The simulators themselves are still in English, except the Car Anatomy Lab guided tour, which has English and Malay narration.
+* **Keyboard shortcuts:** `/` search, `1`–`7` open a simulator, `T` switch theme, `L` switch language, `Esc` clear search.
 * **Animated background**, hover tilt and glow on cards, and a mobile-friendly layout. Animations are turned off for visitors who prefer reduced motion.
 
 ---
@@ -79,7 +80,7 @@ If you wish to run or inspect the dashboard source code locally:
 ## ➕ Adding a New Simulator
 
 1. Put the new `.html` file in the same folder as `index.html`.
-2. Open `index.html` and add one entry to the `MODULES` list near the top of the script (file name, title, topic, colour, description, tags and an icon).
+2. Open `index.html` and add one entry to the `MODULES` list near the top of the script (file name, title, topic, colour, description in English `en` and Bahasa Malaysia `bm`, tags and an icon). New topics and tags can be translated in `CATS_BM` and `TAGS_BM`, and page texts in `UI`.
 3. Update the Project Structure section below, then commit.
 
 ---
